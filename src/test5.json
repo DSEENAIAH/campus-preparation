@@ -1,0 +1,105 @@
+{
+  "title": "Listening & Grammar Focus",
+  "description": "Specialized test for listening and grammar skills",
+  "duration": 50,
+  "totalMarks": 11,
+  "totalQuestions": 11,
+  "moduleOrder": ["grammarMCQ", "listeningRepetition", "listeningComprehension", "errorCorrection", "aptitude"],
+  "modules": {
+    "grammarMCQ": {
+      "enabled": true,
+      "title": "Grammar",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "gram1",
+          "question": "Choose the correct tense: 'By next year, I _____ my degree.'",
+          "options": ["will complete", "will have completed", "complete", "am completing"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "gram2",
+          "question": "Select the right preposition: 'She is good _____ mathematics.'",
+          "options": ["in", "at", "on", "with"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "gram3",
+          "question": "Find the error: 'Each of the boys have their own book.'",
+          "options": ["Each", "boys", "have", "No error"],
+          "correctAnswer": 2
+        }
+      ]
+    },
+    "listeningRepetition": {
+      "enabled": true,
+      "title": "Listen & Repeat",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lr1",
+          "question": "Repeat: 'Dedication and perseverance lead to achievement.'"
+        },
+        {
+          "id": "lr2",
+          "question": "Repeat: 'Critical thinking skills are essential for problem-solving.'"
+        }
+      ]
+    },
+    "listeningComprehension": {
+      "enabled": true,
+      "title": "Listening",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lc1",
+          "story": "Renewable energy sources like solar and wind power are becoming increasingly important. They help reduce carbon emissions and provide sustainable alternatives to fossil fuels.",
+          "mcqs": [
+            {
+              "question": "What are examples of renewable energy sources mentioned?",
+              "correctAnswer": "Solar and wind power"
+            },
+            {
+              "question": "What do renewable energy sources help reduce?",
+              "correctAnswer": "Carbon emissions"
+            },
+            {
+              "question": "What do they provide alternatives to?",
+              "correctAnswer": "Fossil fuels"
+            }
+          ]
+        }
+      ]
+    },
+    "errorCorrection": {
+      "enabled": true,
+      "title": "Error Correction",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "ec1",
+          "question": "Correct: 'The team have decided to change their strategy.'",
+          "correctAnswer": "The team has decided to change its strategy."
+        },
+        {
+          "id": "ec2",
+          "question": "Correct: 'Between you and I, this is confidential.'",
+          "correctAnswer": "Between you and me, this is confidential."
+        }
+      ]
+    },
+    "aptitude": {
+      "enabled": true,
+      "title": "Aptitude Test",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "apt1",
+          "question": "A train travels 60 km in 45 minutes. What is its speed in km/hr?",
+          "options": ["75", "80", "85", "90"],
+          "correctAnswer": 1
+        }
+      ]
+    }
+  }
+}

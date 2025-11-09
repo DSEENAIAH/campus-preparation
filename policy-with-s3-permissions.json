@@ -1,0 +1,49 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"dynamodb:GetItem",
+				"dynamodb:PutItem",
+				"dynamodb:Scan",
+				"dynamodb:Query",
+				"dynamodb:UpdateItem",
+				"dynamodb:DeleteItem"
+			],
+			"Resource": [
+				"arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-users",
+				"arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-tests",
+				"arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-test-results",
+				"arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-exam-progress"
+			]
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"cognito-idp:InitiateAuth",
+				"cognito-idp:SignUp",
+				"cognito-idp:ConfirmSignUp",
+				"cognito-idp:AdminGetUser"
+			],
+			"Resource": "*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"s3:ListBucket"
+			],
+			"Resource": "arn:aws:s3:::codenvia-exam-frontend-singapore"
+		},
+		{
+			"Effect": "Allow",
+			"Action": [
+				"s3:PutObject",
+				"s3:PutObjectAcl",
+				"s3:GetObject",
+				"s3:DeleteObject"
+			],
+			"Resource": "arn:aws:s3:::codenvia-exam-frontend-singapore/*"
+		}
+	]
+}

@@ -1,0 +1,72 @@
+{
+  "title": "Quick Communication Check",
+  "description": "Fast assessment of speaking and listening skills",
+  "duration": 30,
+  "totalMarks": 8,
+  "totalQuestions": 8,
+  "moduleOrder": ["readingSpeaking", "listeningRepetition", "storytelling", "errorCorrection"],
+  "modules": {
+    "readingSpeaking": {
+      "enabled": true,
+      "title": "Reading & Speaking",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Read: 'Success comes to those who work hard and never give up.'"
+        },
+        {
+          "id": "rs2",
+          "question": "Read: 'Learning new skills opens doors to opportunities.'"
+        }
+      ]
+    },
+    "listeningRepetition": {
+      "enabled": true,
+      "title": "Listen & Repeat",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lr1",
+          "question": "Repeat: 'Practice makes perfect in every endeavor.'"
+        },
+        {
+          "id": "lr2",
+          "question": "Repeat: 'Confidence grows with consistent effort.'"
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "title": "Storytelling",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Tell about your favorite hobby and why you enjoy it"
+        },
+        {
+          "id": "st2",
+          "question": "Describe your dream job in 2 minutes"
+        }
+      ]
+    },
+    "errorCorrection": {
+      "enabled": true,
+      "title": "Error Correction",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "ec1",
+          "question": "Correct: 'Me and my friend went to the store.'",
+          "correctAnswer": "My friend and I went to the store."
+        },
+        {
+          "id": "ec2",
+          "question": "Correct: 'There is many reasons for this decision.'",
+          "correctAnswer": "There are many reasons for this decision."
+        }
+      ]
+    }
+  }
+}

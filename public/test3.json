@@ -1,0 +1,313 @@
+{
+  "title": "English Proficiency Assessment - Level 3",
+  "description": "Comprehensive English language assessment covering reading, listening, grammar, and speaking skills for intermediate to advanced learners",
+  "duration": 45,
+  "totalMarks": 500,
+  "modules": {
+    "readingSpeaking": {
+      "enabled": true,
+      "name": "Reading & Speaking",
+      "description": "Read sentences and speak them aloud clearly",
+      "marksPerQuestion": 20,
+      "totalMarks": 100,
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Technology has revolutionized the way we communicate and work in the modern world.",
+          "type": "speechToText",
+          "expectedAnswer": "Technology has revolutionized the way we communicate and work in the modern world",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "rs2",
+          "question": "Environmental sustainability is crucial for future generations and global prosperity.",
+          "type": "speechToText",
+          "expectedAnswer": "Environmental sustainability is crucial for future generations and global prosperity",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "rs3",
+          "question": "Artificial intelligence continues to transform various industries and business processes.",
+          "type": "speechToText",
+          "expectedAnswer": "Artificial intelligence continues to transform various industries and business processes",
+          "marks": 20,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "rs4",
+          "question": "Education plays a fundamental role in personal development and career advancement.",
+          "type": "speechToText",
+          "expectedAnswer": "Education plays a fundamental role in personal development and career advancement",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "rs5",
+          "question": "Global cooperation is essential for addressing climate change and economic challenges.",
+          "type": "speechToText",
+          "expectedAnswer": "Global cooperation is essential for addressing climate change and economic challenges",
+          "marks": 20,
+          "difficulty": "advanced"
+        }
+      ]
+    },
+    "listeningRepetition": {
+      "enabled": true,
+      "name": "Listen & Repeat",
+      "description": "Listen to sentences and repeat them accurately",
+      "marksPerQuestion": 20,
+      "totalMarks": 100,
+      "questions": [
+        {
+          "id": "lr1",
+          "question": "Please repeat: Innovation drives progress in science and technology.",
+          "audioText": "Innovation drives progress in science and technology",
+          "type": "listenAndRepeat",
+          "expectedAnswer": "Innovation drives progress in science and technology",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "lr2",
+          "question": "Please repeat: Collaboration enhances productivity and creative problem-solving.",
+          "audioText": "Collaboration enhances productivity and creative problem-solving",
+          "type": "listenAndRepeat",
+          "expectedAnswer": "Collaboration enhances productivity and creative problem-solving",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "lr3",
+          "question": "Please repeat: Digital transformation requires strategic planning and implementation.",
+          "audioText": "Digital transformation requires strategic planning and implementation",
+          "type": "listenAndRepeat",
+          "expectedAnswer": "Digital transformation requires strategic planning and implementation",
+          "marks": 20,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "lr4",
+          "question": "Please repeat: Professional development contributes to career success and satisfaction.",
+          "audioText": "Professional development contributes to career success and satisfaction",
+          "type": "listenAndRepeat",
+          "expectedAnswer": "Professional development contributes to career success and satisfaction",
+          "marks": 20,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "lr5",
+          "question": "Please repeat: Sustainable practices benefit both environment and economy.",
+          "audioText": "Sustainable practices benefit both environment and economy",
+          "type": "listenAndRepeat",
+          "expectedAnswer": "Sustainable practices benefit both environment and economy",
+          "marks": 20,
+          "difficulty": "intermediate"
+        }
+      ]
+    },
+    "grammarMCQ": {
+      "enabled": true,
+      "name": "Grammar",
+      "description": "Choose the correct grammar option for each sentence",
+      "marksPerQuestion": 10,
+      "totalMarks": 100,
+      "questions": [
+        {
+          "id": "gm1",
+          "question": "The company _____ implementing new policies to improve workplace efficiency.",
+          "options": ["is", "are", "was", "were"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "present continuous",
+          "marks": 10,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "gm2",
+          "question": "If I _____ more time, I would have completed the project successfully.",
+          "options": ["have", "had", "would have", "will have"],
+          "correctOption": 1,
+          "type": "mcq",
+          "grammarType": "conditional",
+          "marks": 10,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "gm3",
+          "question": "The team has been working _____ this proposal for several months.",
+          "options": ["on", "in", "at", "with"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "prepositions",
+          "marks": 10,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "gm4",
+          "question": "Neither the manager nor the employees _____ satisfied with the new schedule.",
+          "options": ["is", "are", "was", "being"],
+          "correctOption": 1,
+          "type": "mcq",
+          "grammarType": "subject-verb agreement",
+          "marks": 10,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "gm5",
+          "question": "By next year, we _____ our expansion into international markets.",
+          "options": ["complete", "will complete", "will have completed", "completing"],
+          "correctOption": 2,
+          "type": "mcq",
+          "grammarType": "future perfect",
+          "marks": 10,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "gm6",
+          "question": "The presentation was _____ informative and engaging for the audience.",
+          "options": ["both", "either", "neither", "whether"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "correlative conjunctions",
+          "marks": 10,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "gm7",
+          "question": "She insisted _____ reviewing the contract before signing it.",
+          "options": ["on", "in", "at", "for"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "prepositions",
+          "marks": 10,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "gm8",
+          "question": "The research findings _____ published in the next journal issue.",
+          "options": ["will be", "will being", "will been", "will have"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "passive voice",
+          "marks": 10,
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "gm9",
+          "question": "_____ the weather improves, we will proceed with the outdoor event.",
+          "options": ["Unless", "Provided that", "Even though", "In case"],
+          "correctOption": 1,
+          "type": "mcq",
+          "grammarType": "conditional clauses",
+          "marks": 10,
+          "difficulty": "advanced"
+        },
+        {
+          "id": "gm10",
+          "question": "The committee members expressed _____ concerns about the proposed changes.",
+          "options": ["their", "there", "they're", "theirs"],
+          "correctOption": 0,
+          "type": "mcq",
+          "grammarType": "possessive pronouns",
+          "marks": 10,
+          "difficulty": "basic"
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "name": "Storytelling",
+      "description": "Speak about the given topic for 60 seconds",
+      "marksPerQuestion": 100,
+      "totalMarks": 100,
+      "duration": 60,
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Describe a technological innovation that has significantly impacted your daily life and explain how it has changed the way you work or communicate.",
+          "type": "storytelling",
+          "audioPrompt": "Describe a technological innovation that has significantly impacted your daily life and explain how it has changed the way you work or communicate",
+          "duration": 60,
+          "marks": 100,
+          "difficulty": "intermediate",
+          "guidelines": [
+            "Speak clearly and at a moderate pace",
+            "Provide specific examples and details",
+            "Organize your thoughts logically",
+            "Use appropriate vocabulary and grammar",
+            "Fill the entire 60-second duration"
+          ]
+        }
+      ]
+    },
+    "listeningComprehension": {
+      "enabled": true,
+      "name": "Listening Comprehension",
+      "description": "Listen to a passage and answer multiple choice questions",
+      "marksPerQuestion": 20,
+      "totalMarks": 100,
+      "questions": [
+        {
+          "id": "lc1",
+          "question": "Listen to the following passage about remote work trends and answer the questions",
+          "type": "listeningComprehension",
+          "storyText": "The shift to remote work has fundamentally transformed the modern workplace. Companies worldwide have discovered that employees can maintain high productivity levels while working from home. This transition has led to reduced overhead costs, improved work-life balance, and access to a global talent pool. However, it has also presented challenges such as maintaining team cohesion, ensuring effective communication, and managing digital security. Many organizations are now adopting hybrid models that combine the benefits of both remote and in-office work. Technology platforms for video conferencing, project management, and collaborative tools have become essential infrastructure. The future of work is likely to be more flexible, with companies offering various work arrangements to attract and retain top talent.",
+          "audioText": "The shift to remote work has fundamentally transformed the modern workplace. Companies worldwide have discovered that employees can maintain high productivity levels while working from home. This transition has led to reduced overhead costs, improved work-life balance, and access to a global talent pool. However, it has also presented challenges such as maintaining team cohesion, ensuring effective communication, and managing digital security. Many organizations are now adopting hybrid models that combine the benefits of both remote and in-office work. Technology platforms for video conferencing, project management, and collaborative tools have become essential infrastructure. The future of work is likely to be more flexible, with companies offering various work arrangements to attract and retain top talent.",
+          "marks": 100,
+          "mcqs": [
+            {
+              "id": "lc1_q1",
+              "question": "According to the passage, what is one of the main benefits of remote work for companies?",
+              "options": ["Increased office space", "Reduced overhead costs", "More meetings", "Higher stress levels"],
+              "correctOption": 1,
+              "marks": 20
+            },
+            {
+              "id": "lc1_q2",
+              "question": "What challenge of remote work is mentioned in the passage?",
+              "options": ["Increased productivity", "Better work-life balance", "Maintaining team cohesion", "Access to global talent"],
+              "correctOption": 2,
+              "marks": 20
+            },
+            {
+              "id": "lc1_q3",
+              "question": "What type of work model are many organizations adopting?",
+              "options": ["Fully remote", "Traditional office", "Hybrid models", "Temporary contracts"],
+              "correctOption": 2,
+              "marks": 20
+            },
+            {
+              "id": "lc1_q4",
+              "question": "Which technology tools are mentioned as essential for remote work?",
+              "options": ["Social media platforms", "Video conferencing and project management", "Gaming applications", "Traditional telephone systems"],
+              "correctOption": 1,
+              "marks": 20
+            },
+            {
+              "id": "lc1_q5",
+              "question": "How is the future of work described in the passage?",
+              "options": ["More rigid and structured", "Likely to be more flexible", "Returning to traditional methods", "Focused only on technology"],
+              "correctOption": 1,
+              "marks": 20
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "instructions": [
+    "Read each question carefully before answering",
+    "Speak clearly and at a moderate pace for speaking sections",
+    "You have 45 minutes to complete all sections",
+    "Each section has specific time limits",
+    "Ensure your microphone is working properly before starting",
+    "Complete all questions in each enabled module"
+  ],
+  "passingScore": 60,
+  "difficultyLevel": "intermediate",
+  "category": "english-proficiency",
+  "tags": ["english", "proficiency", "speaking", "listening", "grammar", "intermediate"],
+  "version": "3.0"
+}

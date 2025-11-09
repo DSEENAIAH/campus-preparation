@@ -1,0 +1,289 @@
+/* Pre-Exam Setup Page Improvements */
+
+/* Sound Wave Animation for Microphone Testing */
+@keyframes soundWave {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Enhanced Professional Microphone for Setup */
+.setup-mic {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.setup-mic--large {
+  width: 120px;
+  height: 120px;
+  background: var(--primary-blue);
+  box-shadow: var(--shadow-blue);
+}
+
+.setup-mic--testing {
+  background: var(--error-red);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2), var(--shadow-red);
+  animation: micPulse 1.5s infinite;
+}
+
+.setup-mic--success {
+  background: var(--success-green);
+  box-shadow: var(--shadow-green);
+}
+
+.setup-mic:hover {
+  transform: scale(1.05);
+}
+
+/* Setup Card Improvements */
+.setup-card {
+  padding: 28px;
+  borderRadius: 16px;
+  border: 2px solid;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.setup-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.setup-card:hover::before {
+  left: 100%;
+}
+
+.setup-card--pending {
+  background: var(--bg-gray-50);
+  border-color: var(--border-light);
+}
+
+.setup-card--active {
+  background: var(--primary-blue-light);
+  border-color: var(--primary-blue);
+  box-shadow: var(--shadow-blue);
+}
+
+.setup-card--success {
+  background: var(--success-green-light);
+  border-color: var(--success-green);
+  box-shadow: var(--shadow-green);
+}
+
+/* Step Number Badge */
+.step-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.step-badge--pending {
+  background: var(--neutral-400);
+}
+
+.step-badge--active {
+  background: var(--primary-blue);
+}
+
+.step-badge--success {
+  background: var(--success-green);
+}
+
+/* Enhanced Buttons */
+.setup-btn {
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.setup-btn--primary {
+  background: var(--primary-blue);
+  color: white;
+  box-shadow: var(--shadow-blue);
+}
+
+.setup-btn--primary:hover {
+  background: var(--primary-blue-hover);
+  transform: translateY(-2px);
+}
+
+.setup-btn--success {
+  background: var(--success-green);
+  color: white;
+  box-shadow: var(--shadow-green);
+}
+
+.setup-btn--success:hover {
+  background: var(--success-green-hover);
+  transform: translateY(-2px);
+}
+
+/* Camera Preview Enhancements */
+.camera-preview {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--neutral-800);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+  border: 3px solid var(--border-light);
+}
+
+.camera-preview--success {
+  border-color: var(--success-green);
+  box-shadow: var(--shadow-green);
+}
+
+/* Status Messages */
+.status-message {
+  padding: 14px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status-message--testing {
+  background: var(--primary-blue-light);
+  color: var(--primary-blue-dark);
+}
+
+.status-message--success {
+  background: var(--success-green-light);
+  color: var(--success-green-dark);
+}
+
+.status-message--error {
+  background: var(--error-red-light);
+  color: var(--error-red);
+}
+
+/* Guidelines Section */
+.guidelines-section {
+  padding: 24px;
+  background: var(--bg-gray-50);
+  border-radius: 16px;
+  border: 2px solid var(--border-light);
+}
+
+.guideline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--neutral-700);
+  line-height: 1.6;
+}
+
+.guideline-icon {
+  color: var(--primary-blue);
+  font-weight: bold;
+  min-width: 6px;
+}
+
+/* Checkbox Styling */
+.guidelines-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 2px solid var(--warning-amber);
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.guidelines-checkbox--accepted {
+  background: var(--success-green-light);
+  border-color: var(--success-green);
+}
+
+.guidelines-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--success-green);
+}
+
+/* Start Test Button */
+.start-test-btn {
+  width: 100%;
+  padding: 20px;
+  border: none;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.start-test-btn--ready {
+  background: linear-gradient(135deg, var(--success-green) 0%, var(--success-green-hover) 100%);
+  box-shadow: var(--shadow-green);
+}
+
+.start-test-btn--ready:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+}
+
+.start-test-btn--disabled {
+  background: var(--neutral-300);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .setup-mic--large {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .setup-card {
+    padding: 20px;
+  }
+  
+  .camera-preview {
+    aspect-ratio: 16/9;
+  }
+}

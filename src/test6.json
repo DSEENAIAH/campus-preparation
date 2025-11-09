@@ -1,0 +1,67 @@
+{
+  "title": "Voice Skills Assessment",
+  "description": "Comprehensive evaluation of speaking abilities",
+  "duration": 40,
+  "totalMarks": 9,
+  "totalQuestions": 9,
+  "moduleOrder": ["readingSpeaking", "listeningRepetition", "storytelling"],
+  "modules": {
+    "readingSpeaking": {
+      "enabled": true,
+      "title": "Reading & Speaking",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Read: 'Innovation drives progress and creates new possibilities for humanity.'"
+        },
+        {
+          "id": "rs2",
+          "question": "Read: 'Effective leadership requires empathy, vision, and clear communication.'"
+        },
+        {
+          "id": "rs3",
+          "question": "Read: 'Continuous learning is the foundation of personal and professional growth.'"
+        }
+      ]
+    },
+    "listeningRepetition": {
+      "enabled": true,
+      "title": "Listen & Repeat",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lr1",
+          "question": "Repeat: 'Collaboration and teamwork achieve remarkable results.'"
+        },
+        {
+          "id": "lr2",
+          "question": "Repeat: 'Adaptability is crucial in today's rapidly changing world.'"
+        },
+        {
+          "id": "lr3",
+          "question": "Repeat: 'Quality education empowers individuals to reach their potential.'"
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "title": "Storytelling",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Tell about a book or movie that inspired you"
+        },
+        {
+          "id": "st2",
+          "question": "Describe your ideal workplace environment"
+        },
+        {
+          "id": "st3",
+          "question": "Share your thoughts on the importance of technology in education"
+        }
+      ]
+    }
+  }
+}

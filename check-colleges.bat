@@ -1,0 +1,3 @@
+@echo off
+echo Checking codenvia-colleges table...
+aws dynamodb scan --table-name codenvia-colleges --region ap-southeast-1

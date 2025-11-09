@@ -1,0 +1,55 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Scan",
+                "dynamodb:Query"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-users",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-tests",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-test-results",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-exam-progress",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-users/index/*",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-tests/index/*",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-test-results/index/*",
+                "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-exam-progress/index/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cognito-idp:InitiateAuth",
+                "cognito-idp:GetUser",
+                "cognito-idp:SignUp",
+                "cognito-idp:ConfirmSignUp",
+                "cognito-idp:AdminCreateUser",
+                "cognito-idp:AdminSetUserPassword"
+            ],
+            "Resource": "arn:aws:cognito-idp:ap-southeast-1:292085144687:userpool/ap-southeast-1_Azkle9209"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": "arn:aws:s3:::codenvia-exam-frontend-singapore"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::codenvia-exam-frontend-singapore/*"
+        }
+    ]
+}

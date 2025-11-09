@@ -1,0 +1,145 @@
+{
+  "title": "Advanced Reasoning & Communication",
+  "description": "High-level assessment for advanced candidates",
+  "duration": 75,
+  "totalMarks": 18,
+  "totalQuestions": 18,
+  "moduleOrder": ["aptitude", "grammarMCQ", "readingSpeaking", "listeningComprehension", "storytelling", "errorCorrection"],
+  "modules": {
+    "aptitude": {
+      "enabled": true,
+      "title": "Aptitude Test",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "apt1",
+          "question": "If the day before yesterday was Thursday, what day will it be the day after tomorrow?",
+          "options": ["Sunday", "Monday", "Tuesday", "Wednesday"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "apt2",
+          "question": "In a certain code, COMPUTER is written as RFUVQNPC. How is MEDICINE written?",
+          "options": ["EOJDEJFM", "EOJDJEFM", "EOJDFJME", "EOJDEFMJ"],
+          "correctAnswer": 0
+        },
+        {
+          "id": "apt3",
+          "question": "Find the missing number: 2, 6, 18, 54, ?",
+          "options": ["108", "162", "216", "324"],
+          "correctAnswer": 1
+        }
+      ]
+    },
+    "grammarMCQ": {
+      "enabled": true,
+      "title": "Grammar",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "gram1",
+          "question": "Choose the correct sentence:",
+          "options": ["Whom did you give the book to?", "Who did you give the book to?", "To whom did you give the book?", "Both A and C are correct"],
+          "correctAnswer": 3
+        },
+        {
+          "id": "gram2",
+          "question": "Select the sentence with correct subject-verb agreement:",
+          "options": ["The committee have made their decision", "The committee has made its decision", "The committee have made its decision", "The committee has made their decision"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "gram3",
+          "question": "Identify the type of clause: 'Although it was raining, we went for a walk.'",
+          "options": ["Noun clause", "Adjective clause", "Adverb clause", "Independent clause"],
+          "correctAnswer": 2
+        }
+      ]
+    },
+    "readingSpeaking": {
+      "enabled": true,
+      "title": "Reading & Speaking",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Read this complex passage: 'The paradigm shift towards sustainable development necessitates comprehensive policy reforms and stakeholder engagement across multiple sectors.'"
+        },
+        {
+          "id": "rs2",
+          "question": "Read: 'Interdisciplinary collaboration fosters innovation by integrating diverse perspectives and methodologies.'"
+        },
+        {
+          "id": "rs3",
+          "question": "Read: 'The exponential growth of data analytics has revolutionized decision-making processes in contemporary organizations.'"
+        }
+      ]
+    },
+    "listeningComprehension": {
+      "enabled": true,
+      "title": "Listening",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lc1",
+          "story": "Artificial intelligence and machine learning are transforming various industries. From healthcare diagnostics to financial fraud detection, these technologies are improving accuracy and efficiency. However, ethical considerations regarding privacy and job displacement remain significant challenges that society must address.",
+          "mcqs": [
+            {
+              "question": "What industries are mentioned as being transformed by AI?",
+              "correctAnswer": "Healthcare and financial"
+            },
+            {
+              "question": "What benefits do these technologies provide?",
+              "correctAnswer": "Improved accuracy and efficiency"
+            },
+            {
+              "question": "What are the main ethical concerns mentioned?",
+              "correctAnswer": "Privacy and job displacement"
+            }
+          ]
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "title": "Storytelling",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Present a compelling argument for or against remote work in the post-pandemic era"
+        },
+        {
+          "id": "st2",
+          "question": "Describe how you would solve a complex problem in your field of expertise"
+        },
+        {
+          "id": "st3",
+          "question": "Explain the impact of globalization on local communities"
+        }
+      ]
+    },
+    "errorCorrection": {
+      "enabled": true,
+      "title": "Error Correction",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "ec1",
+          "question": "Correct: 'The phenomena of climate change are affecting ecosystems worldwide.'",
+          "correctAnswer": "The phenomenon of climate change is affecting ecosystems worldwide."
+        },
+        {
+          "id": "ec2",
+          "question": "Correct: 'Less people are attending the conference this year compared to last year.'",
+          "correctAnswer": "Fewer people are attending the conference this year compared to last year."
+        },
+        {
+          "id": "ec3",
+          "question": "Correct: 'The criteria for selection is based on merit and experience.'",
+          "correctAnswer": "The criteria for selection are based on merit and experience."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "title": "Basic English Assessment",
+  "description": "Fundamental English skills evaluation",
+  "duration": 4,
+  "totalMarks": 6,
+  "totalQuestions": 6,
+  "moduleOrder": ["grammarMCQ", "readingSpeaking", "errorCorrection"],
+  "modules": {
+    "grammarMCQ": {
+      "enabled": true,
+      "title": "Grammar",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "gram1",
+          "question": "Choose the correct form: 'She _____ to school every day.'",
+          "options": ["go", "goes", "going", "gone"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "gram2",
+          "question": "Which is correct: 'I have _____ my homework.'",
+          "options": ["do", "did", "done", "doing"],
+          "correctAnswer": 2
+        }
+      ]
+    },
+    "readingSpeaking": {
+      "enabled": true,
+      "title": "Reading & Speaking",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Read aloud: 'The quick brown fox jumps over the lazy dog.'"
+        },
+        {
+          "id": "rs2",
+          "question": "Read aloud: 'Education is the key to success in life.'"
+        }
+      ]
+    },
+    "errorCorrection": {
+      "enabled": true,
+      "title": "Error Correction",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "ec1",
+          "question": "Correct this sentence: 'He don't like coffee.'",
+          "correctAnswer": "He doesn't like coffee."
+        },
+        {
+          "id": "ec2",
+          "question": "Correct this sentence: 'She are going to market.'",
+          "correctAnswer": "She is going to market."
+        }
+      ]
+    }
+  }
+}

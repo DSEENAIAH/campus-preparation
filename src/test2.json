@@ -1,0 +1,44 @@
+{
+  "title": "Aptitude & Communication Test",
+  "description": "Logical reasoning and communication skills",
+  "duration": 60,
+  "totalMarks": 4,
+  "totalQuestions": 4,
+  "moduleOrder": ["aptitude", "storytelling"],
+  "modules": {
+    "aptitude": {
+      "enabled": true,
+      "title": "Aptitude Test",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "apt1",
+          "question": "If 5 + 3 = 28, 9 + 1 = 810, then 8 + 6 = ?",
+          "options": ["214", "314", "414", "514"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "apt2",
+          "question": "Complete the series: 2, 6, 12, 20, ?",
+          "options": ["28", "30", "32", "34"],
+          "correctAnswer": 1
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "title": "Storytelling",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Tell a story about your most memorable day"
+        },
+        {
+          "id": "st2",
+          "question": "Describe a challenge you overcame and what you learned"
+        }
+      ]
+    }
+  }
+}

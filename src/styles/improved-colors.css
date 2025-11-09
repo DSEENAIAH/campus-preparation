@@ -1,0 +1,235 @@
+/* Improved Color Scheme for Low Network & Professional Look */
+:root {
+  /* Primary Colors */
+  --primary-blue: #2563eb;
+  --primary-blue-hover: #1d4ed8;
+  --primary-blue-light: #dbeafe;
+  --primary-blue-dark: #1e40af;
+
+  /* Success Colors */
+  --success-green: #10b981;
+  --success-green-hover: #059669;
+  --success-green-light: #d1fae5;
+  --success-green-dark: #047857;
+
+  /* Warning Colors */
+  --warning-amber: #f59e0b;
+  --warning-amber-hover: #d97706;
+  --warning-amber-light: #fef3c7;
+
+  /* Error Colors */
+  --error-red: #ef4444;
+  --error-red-hover: #dc2626;
+  --error-red-light: #fee2e2;
+
+  /* Neutral Colors */
+  --neutral-50: #f9fafb;
+  --neutral-100: #f3f4f6;
+  --neutral-200: #e5e7eb;
+  --neutral-300: #d1d5db;
+  --neutral-400: #9ca3af;
+  --neutral-500: #6b7280;
+  --neutral-600: #4b5563;
+  --neutral-700: #374151;
+  --neutral-800: #1f2937;
+  --neutral-900: #111827;
+
+  /* Background Colors */
+  --bg-white: #ffffff;
+  --bg-gray-50: #f9fafb;
+  --bg-gray-100: #f3f4f6;
+
+  /* Border Colors */
+  --border-light: #e5e7eb;
+  --border-medium: #d1d5db;
+  --border-dark: #9ca3af;
+
+  /* Shadow Colors */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-blue: 0 4px 12px rgba(37, 99, 235, 0.3);
+  --shadow-green: 0 4px 12px rgba(16, 185, 129, 0.3);
+  --shadow-red: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* Professional Microphone Styles */
+.professional-mic {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.professional-mic--primary {
+  background: var(--primary-blue);
+  box-shadow: var(--shadow-blue);
+}
+
+.professional-mic--primary:hover {
+  background: var(--primary-blue-hover);
+  transform: scale(1.05);
+}
+
+.professional-mic--recording {
+  background: var(--error-red);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2), var(--shadow-red);
+  animation: micPulse 1.5s infinite;
+}
+
+.professional-mic--success {
+  background: var(--success-green);
+  box-shadow: var(--shadow-green);
+}
+
+.professional-mic--disabled {
+  background: var(--neutral-400);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.professional-mic__indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  animation: recordingBlink 1s infinite;
+}
+
+/* Microphone Animations */
+@keyframes micPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes recordingBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Button Styles */
+.btn-primary {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-blue);
+}
+
+.btn-primary:hover {
+  background: var(--primary-blue-hover);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: var(--success-green);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-green);
+}
+
+.btn-success:hover {
+  background: var(--success-green-hover);
+  transform: translateY(-1px);
+}
+
+.btn-error {
+  background: var(--error-red);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-red);
+}
+
+.btn-error:hover {
+  background: var(--error-red-hover);
+  transform: translateY(-1px);
+}
+
+/* Card Styles */
+.card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card--elevated {
+  box-shadow: var(--shadow-md);
+}
+
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--neutral-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--primary-blue);
+  transition: width 0.3s ease;
+}
+
+/* Module Navigation */
+.module-nav {
+  display: flex;
+  background: var(--bg-white);
+  border-bottom: 2px solid var(--border-light);
+}
+
+.module-nav__item {
+  flex: 1;
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  color: var(--neutral-600);
+}
+
+.module-nav__item--active {
+  color: var(--primary-blue);
+  border-bottom-color: var(--primary-blue);
+}
+
+.module-nav__item--completed {
+  background: var(--success-green-light);
+  color: var(--success-green-dark);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.module-nav__item:hover:not(.module-nav__item--completed) {
+  background: var(--neutral-50);
+}

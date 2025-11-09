@@ -1,0 +1,2837 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import PropTypes from 'prop-types';
+import ErrorBoundary from '../components/ErrorBoundary';
+import LiveProgressTab from './LiveProgressTab';
+import CreateTestTab from '../components/CreateTestTab';
+import ScheduleTab from '../components/ScheduleTab';
+import StudentsTab from '../components/StudentsTab';
+import ResultsTab from '../components/ResultsTab';
+import TestCard from '../components/TestCard';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AWSAuthContext';
+import { docClient, AWS_CONFIG } from '../config/aws';
+import { PutCommand, ScanCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import PerformanceMonitor from '../PerformanceMonitor';
+import '../styles/AdminDashboard.css';
+import '../styles/AdminTabs.css';
+import '../styles/ActivityStyles.css';
+import '../styles/ModalStyles.css';
+import '../styles/SafeModals.css';
+import '../styles/UXEnhancements.css';
+import '../styles/CorporateUI.css';
+import '../styles/ScheduleTab.css';
+import '../styles/StudentsResultsTabs.css';
+
+// Memoized sub-components for better performance
+const StatCard = memo(({ stat, className, icon, label, sublabel }) => (
+  <div className={`stat-card ${className}`}>
+    <div className="stat-icon">{icon}</div>
+    <div className="stat-content">
+      <div className="stat-number">{stat}</div>
+      <div className="stat-label">{label}</div>
+      <div className="stat-sublabel">{sublabel}</div>
+    </div>
+  </div>
+));
+
+StatCard.propTypes = {
+  stat: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  className: PropTypes.string,
+  icon: PropTypes.node,
+  label: PropTypes.string.isRequired,
+  sublabel: PropTypes.string
+};
+
+const ActivityItem = memo(({ progress, isActive = false }) => (
+  <div className={`activity-item ${isActive ? 'active' : ''}`}>
+    <div className={`activity-icon ${isActive ? 'active' : ''}`}>
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+              d={isActive ? "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" : "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"} />
+      </svg>
+    </div>
+    <div className="activity-content">
+      <div className="activity-title">
+        {isActive 
+          ? `${progress.studentName} is taking ${progress.testTitle}`
+          : `${progress.userName || 'Student'} completed test - ${progress.percentage}%`
+        }
+      </div>
+      <div className="activity-time">
+        {isActive 
+          ? `Started: ${new Date(progress.startedAt).toLocaleTimeString()}`
+          : (progress.completedAt ? new Date(progress.completedAt).toLocaleString() : 'Recently')
+        }
+      </div>
+    </div>
+    <div className={`activity-status ${isActive ? 'active' : progress.status?.toLowerCase()}`}>
+      {isActive ? 'Live' : progress.status}
+    </div>
+  </div>
+));
+
+ActivityItem.propTypes = {
+  progress: PropTypes.shape({
+    studentName: PropTypes.string,
+    testTitle: PropTypes.string,
+    userName: PropTypes.string,
+    percentage: PropTypes.number,
+    startedAt: PropTypes.string,
+    completedAt: PropTypes.string,
+    status: PropTypes.string
+  }).isRequired,
+  isActive: PropTypes.bool
+};
+
+const AdminDashboard = () => {
+  const { admin, logout: adminLogout, isAdmin, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  
+  // State variables
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [students, setStudents] = useState([]);
+  const [tests, setTests] = useState([]);
+  const [results, setResults] = useState([]);
+  const [examProgress, setExamProgress] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploadMode, setUploadMode] = useState('file');
+  const [jsonContent, setJsonContent] = useState('');
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [retryCount, setRetryCount] = useState({});
+  const [globalError, setGlobalError] = useState(null);
+  
+  // Modal states
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showAssignTestsModal, setShowAssignTestsModal] = useState(false);
+  const [selectedTestsForAssignment, setSelectedTestsForAssignment] = useState([]);
+  const [showAssignmentsModal, setShowAssignmentsModal] = useState(false);
+  const [testAssignments, setTestAssignments] = useState([]);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishData, setPublishData] = useState({
+    selectedColleges: [],
+    publishType: 'now', // 'now' or 'schedule'
+    startDate: '',
+    endDate: '',
+    maxAttempts: 1
+  });
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [selectedTests, setSelectedTests] = useState([]);
+  const [newStatus, setNewStatus] = useState('');
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
+  const [editFormData, setEditFormData] = useState({});
+  const [scheduleData, setScheduleData] = useState({});
+  const [reassignData, setReassignData] = useState({});
+  const [actionLoading, setActionLoading] = useState({});
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Refs
+  const fileInputRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      navigate('/login');
+    }
+  }, [isAdmin, authLoading, navigate]);
+
+  // Initialize tab from localStorage
+  useEffect(() => {
+    const savedTab = localStorage.getItem('adminActiveTab');
+    if (savedTab) {
+      setActiveTab(savedTab);
+    }
+  }, []);
+
+  // Utility functions
+  const sanitizeString = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[<>]/g, '');
+  };
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  const isRetryableError = (error) => {
+    const retryableErrors = [
+      'NetworkingError',
+      'TimeoutError', 
+      'ThrottlingException',
+      'ServiceUnavailableException',
+      'InternalServerError'
+    ];
+    return retryableErrors.includes(error.name) || error.code >= 500;
+  };
+
+  const retryOperation = async (operation, operationName, maxRetries = 3) => {
+    const currentRetries = retryCount[operationName] || 0;
+    
+    try {
+      const result = await operation();
+      if (currentRetries > 0) {
+        setRetryCount(prev => ({ ...prev, [operationName]: 0 }));
+      }
+      return result;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw error;
+      }
+      
+      if (currentRetries < maxRetries && isRetryableError(error)) {
+        const delay = Math.min(1000 * Math.pow(2, currentRetries), 5000);
+        setRetryCount(prev => ({ ...prev, [operationName]: currentRetries + 1 }));
+        
+        showNotificationMessage(`Retrying ${operationName}... (${currentRetries + 1}/${maxRetries})`, 'warning');
+        await sleep(delay);
+        
+        return retryOperation(operation, operationName, maxRetries);
+      }
+      
+      throw error;
+    }
+  };
+
+  const handleError = (error, operation) => {
+    console.error(`Error in ${operation}:`, error);
+    
+    if (error.name === 'AbortError') {
+      return;
+    }
+
+    const errorMessages = {
+      'AccessDeniedException': 'Access denied. Please check AWS permissions.',
+      'ValidationException': 'Invalid request parameters.',
+      'ConditionalCheckFailedException': 'Operation failed due to condition check.',
+      'ProvisionedThroughputExceededException': 'Request rate too high. Please try again later.',
+      'NetworkingError': 'Network connection failed. Please check your internet connection.',
+      'TimeoutError': 'Request timed out. Please try again.'
+    };
+
+    const message = errorMessages[error.name] || `${operation} failed: ${error.message}`;
+    setGlobalError({ operation, message });
+    showNotificationMessage(message, 'error');
+  };
+
+  const showNotificationMessage = (message, type = 'success') => {
+    setNotificationMessage(message);
+    setNotificationType(type);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 5000);
+  };
+
+  // Real-time data fetching functions
+  const fetchStudents = useCallback(async () => {
+    try {
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.users,
+        FilterExpression: '#role = :role',
+        ExpressionAttributeNames: { '#role': 'role' },
+        ExpressionAttributeValues: { ':role': 'student' }
+      });
+      const result = await docClient.send(command);
+      setStudents(result.Items || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    }
+  }, []);
+
+  const fetchTests = useCallback(async () => {
+    try {
+      const command = new ScanCommand({ TableName: AWS_CONFIG.tables.tests });
+      const result = await docClient.send(command);
+      setTests(result.Items || []);
+    } catch (error) {
+      console.error('Error fetching tests:', error);
+    }
+  }, []);
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const command = new ScanCommand({ TableName: AWS_CONFIG.tables.results });
+      const result = await docClient.send(command);
+      setResults(result.Items || []);
+    } catch (error) {
+      console.error('Error fetching results:', error);
+    }
+  }, []);
+
+  const fetchExamProgress = useCallback(async () => {
+    try {
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.progress,
+        FilterExpression: '#status = :status',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':status': 'in-progress' }
+      });
+      const result = await docClient.send(command);
+      
+      // Filter for truly active exams (updated within last 2 minutes)
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      let activeExams = (result.Items || []).filter(progress => 
+        progress.lastUpdated && 
+        progress.lastUpdated > twoMinutesAgo &&
+        progress.status === 'in-progress'
+      );
+      
+      // Remove duplicates by keeping only the most recent record per student-test combination
+      const uniqueExams = new Map();
+      activeExams.forEach(exam => {
+        const key = `${exam.testId}_${exam.studentEmail}`;
+        const existing = uniqueExams.get(key);
+        if (!existing || new Date(exam.lastUpdated) > new Date(existing.lastUpdated)) {
+          uniqueExams.set(key, exam);
+        }
+      });
+      
+      const deduplicatedExams = Array.from(uniqueExams.values());
+      
+      console.log('📊 Raw progress items:', result.Items?.length || 0);
+      console.log('⏰ Active exams (last 2 min):', activeExams.length);
+      console.log('🔄 Deduplicated active exams:', deduplicatedExams.length);
+      
+      if (deduplicatedExams.length === 0) {
+        console.log('✅ No active exams found - clearing display');
+      }
+      
+      setExamProgress(deduplicatedExams);
+    } catch (error) {
+      console.error('Error fetching exam progress:', error);
+      setExamProgress([]);
+    }
+  }, []);
+
+  // Fetch assignments for test status
+  const fetchAssignments = useCallback(async () => {
+    try {
+      const command = new ScanCommand({ TableName: AWS_CONFIG.tables.assignments });
+      const result = await docClient.send(command);
+      return result.Items || [];
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      return [];
+    }
+  }, []);
+
+  // Initial data fetching effect
+  useEffect(() => {
+    if (admin && (activeTab === 'dashboard' || activeTab === 'exams')) {
+      const fetchAllData = async () => {
+        setLoading(true);
+        await Promise.all([
+          fetchStudents(),
+          fetchTests(),
+          fetchResults(),
+          fetchExamProgress()
+        ]);
+        setLoading(false);
+      };
+      
+      fetchAllData();
+    }
+  }, [admin, activeTab, fetchStudents, fetchTests, fetchResults, fetchExamProgress]);
+
+  // Real-time polling for live progress tab
+  useEffect(() => {
+    let intervalId;
+    let cleanupIntervalId;
+    
+    if (admin && activeTab === 'live-progress') {
+      // Initial fetch
+      fetchExamProgress();
+      
+      // Set up polling every 10 seconds
+      intervalId = setInterval(() => {
+        fetchExamProgress();
+      }, 10000);
+      
+      // Clean up old progress records every 2 minutes
+      cleanupIntervalId = setInterval(async () => {
+        try {
+          const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+          const command = new ScanCommand({
+            TableName: AWS_CONFIG.tables.progress,
+            FilterExpression: '#status = :status AND lastUpdated < :cutoff',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: { 
+              ':status': 'in-progress',
+              ':cutoff': threeMinutesAgo
+            }
+          });
+          
+          const result = await docClient.send(command);
+          
+          if (result.Items && result.Items.length > 0) {
+            console.log(`🧹 Cleaning up ${result.Items.length} stale progress records`);
+            
+            // Update stale records to 'abandoned' status
+            const updatePromises = result.Items.map(item => {
+              const updateCommand = new UpdateCommand({
+                TableName: AWS_CONFIG.tables.progress,
+                Key: { id: item.id },
+                UpdateExpression: 'SET #status = :status, abandonedAt = :timestamp',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                  ':status': 'abandoned',
+                  ':timestamp': new Date().toISOString()
+                }
+              });
+              return docClient.send(updateCommand);
+            });
+            
+            await Promise.all(updatePromises);
+          }
+        } catch (error) {
+          console.error('Error cleaning up stale progress records:', error);
+        }
+      }, 2 * 60 * 1000); // Every 2 minutes
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (cleanupIntervalId) {
+        clearInterval(cleanupIntervalId);
+      }
+    };
+  }, [admin, activeTab, fetchExamProgress]);
+
+  // Test management functions
+  const handlePreviewTest = useCallback(async (test) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data
+      const testCommand = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const testResult = await docClient.send(testCommand);
+      const realTimeTest = testResult.Items?.[0] || test;
+      
+      // Fetch real-time question counts
+      let totalQuestions = 0;
+      const moduleQuestions = {};
+      
+      if (realTimeTest.questions && realTimeTest.questions.length > 0) {
+        totalQuestions = realTimeTest.questions.length;
+        
+        // Count questions by module
+        realTimeTest.questions.forEach(q => {
+          const module = q.module || 'General';
+          moduleQuestions[module] = (moduleQuestions[module] || 0) + 1;
+        });
+      }
+      
+      // Fetch real-time assignment count
+      const assignmentCommand = new ScanCommand({
+        TableName: AWS_CONFIG.tables.assignments,
+        FilterExpression: 'testId = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      let assignmentCount = 0;
+      try {
+        const assignmentResult = await docClient.send(assignmentCommand);
+        assignmentCount = assignmentResult.Items?.length || 0;
+      } catch (error) {
+        console.log('No assignments table or error fetching assignments:', error);
+      }
+      
+      // Fetch real-time completion count
+      const resultCommand = new ScanCommand({
+        TableName: AWS_CONFIG.tables.results,
+        FilterExpression: 'testId = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      let completionCount = 0;
+      let avgScore = 0;
+      try {
+        const resultResult = await docClient.send(resultCommand);
+        const results = resultResult.Items || [];
+        completionCount = results.length;
+        
+        if (results.length > 0) {
+          const totalScore = results.reduce((sum, r) => sum + (r.percentage || 0), 0);
+          avgScore = Math.round(totalScore / results.length);
+        }
+      } catch (error) {
+        console.log('Error fetching results:', error);
+      }
+      
+      // Combine all real-time data
+      const enhancedTest = {
+        ...realTimeTest,
+        realTimeStats: {
+          totalQuestions,
+          moduleQuestions,
+          assignmentCount,
+          completionCount,
+          avgScore
+        }
+      };
+      
+      setSelectedTest(enhancedTest);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error fetching real-time test data:', error);
+      setSelectedTest(test); // Fallback to cached data
+      setShowPreview(true);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, []);
+
+  const handleEditTest = useCallback(async (test) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const result = await docClient.send(command);
+      const realTimeTest = result.Items?.[0] || test;
+      
+      setSelectedTest(realTimeTest);
+      setEditFormData({
+        title: realTimeTest.title || '',
+        description: realTimeTest.description || '',
+        status: realTimeTest.status || 'draft',
+        timeLimit: realTimeTest.timeLimit || 60,
+        totalQuestions: realTimeTest.questions?.length || 0
+      });
+      setShowEdit(true);
+    } catch (error) {
+      console.error('Error fetching real-time test data:', error);
+      setSelectedTest(test);
+      setEditFormData({
+        title: test.title || '',
+        description: test.description || '',
+        status: test.status || 'draft',
+        timeLimit: test.timeLimit || 60,
+        totalQuestions: test.questions?.length || 0
+      });
+      setShowEdit(true);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, []);
+
+  const handleDeleteTest = useCallback((test) => {
+    setSelectedTest(test);
+    setShowDeleteModal(true);
+  }, []);
+
+  const handleStatusChange = useCallback(async (test, status) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const result = await docClient.send(command);
+      const realTimeTest = result.Items?.[0] || test;
+      
+      if (status === 'published') {
+        setSelectedTest(realTimeTest);
+        setPublishData({
+          selectedColleges: [],
+          publishType: 'now',
+          startDate: '',
+          endDate: '',
+          maxAttempts: 1
+        });
+        setShowPublishModal(true);
+      } else {
+        setSelectedTest(realTimeTest);
+        setNewStatus(status);
+        setShowStatusModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching real-time test data:', error);
+      setSelectedTest(test);
+      if (status === 'published') {
+        setPublishData({
+          selectedColleges: [],
+          publishType: 'now',
+          startDate: '',
+          endDate: '',
+          maxAttempts: 1
+        });
+        setShowPublishModal(true);
+      } else {
+        setNewStatus(status);
+        setShowStatusModal(true);
+      }
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, []);
+
+  const confirmStatusChange = useCallback(async () => {
+    if (!selectedTest || !newStatus) return;
+    
+    setActionLoading(prev => ({ ...prev, [selectedTest.id]: true }));
+    
+    try {
+      const command = new UpdateCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        Key: { id: selectedTest.id },
+        UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':status': newStatus,
+          ':updatedAt': new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      await fetchTests();
+      showNotificationMessage(`Test ${newStatus} successfully!`, 'success');
+      setShowStatusModal(false);
+    } catch (error) {
+      handleError(error, 'Update test status');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [selectedTest.id]: false }));
+    }
+  }, [selectedTest, newStatus, fetchTests]);
+
+  const confirmDeleteTest = useCallback(async () => {
+    if (!selectedTest) return;
+    
+    setActionLoading(prev => ({ ...prev, [selectedTest.id]: true }));
+    
+    try {
+      const command = new DeleteCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        Key: { id: selectedTest.id }
+      });
+      
+      await docClient.send(command);
+      await fetchTests();
+      showNotificationMessage('Test deleted successfully!', 'success');
+      setShowDeleteModal(false);
+    } catch (error) {
+      handleError(error, 'Delete test');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [selectedTest.id]: false }));
+    }
+  }, [selectedTest, fetchTests]);
+
+  const saveTestEdit = useCallback(async () => {
+    if (!selectedTest || !editFormData.title) return;
+    
+    setActionLoading(prev => ({ ...prev, [selectedTest.id]: true }));
+    
+    try {
+      const command = new UpdateCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        Key: { id: selectedTest.id },
+        UpdateExpression: 'SET title = :title, description = :description, timeLimit = :timeLimit, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':title': sanitizeString(editFormData.title),
+          ':description': sanitizeString(editFormData.description),
+          ':timeLimit': parseInt(editFormData.timeLimit) || 60,
+          ':updatedAt': new Date().toISOString()
+        }
+      });
+      
+      await docClient.send(command);
+      await fetchTests();
+      showNotificationMessage('Test updated successfully!', 'success');
+      setShowEdit(false);
+    } catch (error) {
+      handleError(error, 'Update test');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [selectedTest.id]: false }));
+    }
+  }, [selectedTest, editFormData, fetchTests]);
+
+  // Additional action handlers
+  const handleScheduleTest = useCallback(async (test) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const result = await docClient.send(command);
+      const realTimeTest = result.Items?.[0] || test;
+      
+      setSelectedTest(realTimeTest);
+      setScheduleData({
+        testId: realTimeTest.id || '',
+        startDate: '',
+        endDate: '',
+        timeSlots: [],
+        maxAttempts: 1,
+        autoGrade: true
+      });
+      setShowScheduleModal(true);
+    } catch (error) {
+      console.error('Error fetching real-time test data:', error);
+      setSelectedTest(test);
+      setScheduleData({
+        testId: test.id || '',
+        startDate: '',
+        endDate: '',
+        timeSlots: [],
+        maxAttempts: 1,
+        autoGrade: true
+      });
+      setShowScheduleModal(true);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, []);
+
+  const handleCollegeSchedule = useCallback(async () => {
+    if (!selectedTest.college || !scheduleData.testId || !scheduleData.startDate || !scheduleData.endDate) {
+      showNotificationMessage('Please fill all required fields', 'warning');
+      return;
+    }
+
+    try {
+      const collegeStudents = students.filter(s => s.college === selectedTest.college);
+      const assignmentPromises = collegeStudents.map(student => {
+        const assignmentId = `assignment_${scheduleData.testId}_${student.email}_${Date.now()}`;
+        return docClient.send(new PutCommand({
+          TableName: AWS_CONFIG.tables.assignments,
+          Item: {
+            id: assignmentId,
+            testId: scheduleData.testId,
+            studentEmail: student.email,
+            college: selectedTest.college,
+            scheduledStart: scheduleData.startDate,
+            scheduledEnd: scheduleData.endDate,
+            maxAttempts: parseInt(scheduleData.maxAttempts),
+            assignedAt: new Date().toISOString(),
+            assignedBy: admin?.email,
+            status: 'scheduled'
+          }
+        }));
+      });
+      
+      await Promise.all(assignmentPromises);
+      showNotificationMessage(`Test scheduled for ${selectedTest.college} (${collegeStudents.length} students)!`, 'success');
+      setShowScheduleModal(false);
+      fetchTests();
+    } catch (error) {
+      console.error('Error scheduling test:', error);
+      showNotificationMessage('Failed to schedule test', 'error');
+    }
+  }, [selectedTest, scheduleData, students, admin, docClient, AWS_CONFIG.tables.assignments]);
+
+  const handleReassignTest = useCallback(async (test) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const result = await docClient.send(command);
+      const realTimeTest = result.Items?.[0] || test;
+      
+      setSelectedTest(realTimeTest);
+      setReassignData({
+        fromStudents: [],
+        toStudents: [],
+        preserveResults: true,
+        notifyStudents: true,
+        reassignType: 'individual'
+      });
+      setShowReassignModal(true);
+    } catch (error) {
+      console.error('Error fetching real-time test data:', error);
+      setSelectedTest(test);
+      setReassignData({
+        fromStudents: [],
+        toStudents: [],
+        preserveResults: true,
+        notifyStudents: true,
+        reassignType: 'individual'
+      });
+      setShowReassignModal(true);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, []);
+
+  const confirmReassignTest = useCallback(async () => {
+    if (!selectedTest || reassignData.toStudents.length === 0) {
+      showNotificationMessage('Please select students to reassign to', 'warning');
+      return;
+    }
+    
+    setActionLoading(prev => ({ ...prev, [selectedTest.id]: true }));
+    
+    try {
+      const reassignmentId = `reassign_${Date.now()}`;
+      const timestamp = new Date().toISOString();
+      
+      // Create reassignment record
+      const reassignmentRecord = {
+        id: reassignmentId,
+        testId: selectedTest.id,
+        testTitle: selectedTest.title,
+        fromStudentEmails: reassignData.fromStudents,
+        newStudentEmails: reassignData.toStudents,
+        preserveResults: reassignData.preserveResults,
+        notifyStudents: reassignData.notifyStudents,
+        reassignedBy: admin?.email || 'admin',
+        reassignedAt: timestamp,
+        status: 'completed',
+        startDate: null,
+        endDate: null,
+        maxAttempts: 1
+      };
+      
+      // Save reassignment record
+      const reassignCommand = new PutCommand({
+        TableName: AWS_CONFIG.tables.reassignments || 'codenvia-exam-platform-reassignments',
+        Item: reassignmentRecord
+      });
+      
+      await docClient.send(reassignCommand);
+      
+      // If not preserving results, remove old results for fromStudents
+      if (!reassignData.preserveResults && reassignData.fromStudents.length > 0) {
+        const deletePromises = reassignData.fromStudents.map(async (studentEmail) => {
+          try {
+            const scanCommand = new ScanCommand({
+              TableName: AWS_CONFIG.tables.results,
+              FilterExpression: 'testId = :testId AND (studentEmail = :email OR userEmail = :email)',
+              ExpressionAttributeValues: {
+                ':testId': selectedTest.id,
+                ':email': studentEmail
+              }
+            });
+            
+            const scanResult = await docClient.send(scanCommand);
+            
+            if (scanResult.Items && scanResult.Items.length > 0) {
+              const deletePromises = scanResult.Items.map(item => {
+                return docClient.send(new DeleteCommand({
+                  TableName: AWS_CONFIG.tables.results,
+                  Key: { id: item.id }
+                }));
+              });
+              
+              await Promise.all(deletePromises);
+            }
+          } catch (error) {
+            console.error(`Error removing results for ${studentEmail}:`, error);
+          }
+        });
+        
+        await Promise.all(deletePromises);
+      }
+      
+      // Create test assignments for new students
+      const assignmentPromises = reassignData.toStudents.map(async (studentEmail) => {
+        const assignmentId = `assignment_${selectedTest.id}_${studentEmail}_${Date.now()}`;
+        const assignment = {
+          id: assignmentId,
+          testId: selectedTest.id,
+          studentEmail: studentEmail,
+          assignedAt: timestamp,
+          assignedBy: admin?.email || 'admin',
+          status: 'assigned',
+          dueDate: null, // Can be set based on test schedule
+          maxAttempts: 1,
+          currentAttempts: 0
+        };
+        
+        return docClient.send(new PutCommand({
+          TableName: AWS_CONFIG.tables.assignments || 'codenvia-exam-platform-assignments',
+          Item: assignment
+        }));
+      });
+      
+      await Promise.all(assignmentPromises);
+      
+      // Send notifications if enabled
+      if (reassignData.notifyStudents) {
+        const notificationPromises = reassignData.toStudents.map(async (studentEmail) => {
+          const notificationId = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const notification = {
+            id: notificationId,
+            recipientEmail: studentEmail,
+            type: 'test_assigned',
+            title: 'New Test Assignment',
+            message: `You have been assigned to take the test: ${selectedTest.title}`,
+            testId: selectedTest.id,
+            testTitle: selectedTest.title,
+            createdAt: timestamp,
+            read: false,
+            priority: 'normal'
+          };
+          
+          return docClient.send(new PutCommand({
+            TableName: AWS_CONFIG.tables.notifications || 'codenvia-exam-platform-notifications',
+            Item: notification
+          }));
+        });
+        
+        await Promise.all(notificationPromises);
+      }
+      
+      await fetchTests();
+      await fetchResults();
+      
+      const fromCount = reassignData.fromStudents.length;
+      const toCount = reassignData.toStudents.length;
+      const message = fromCount > 0 
+        ? `Test reassigned from ${fromCount} student(s) to ${toCount} student(s) successfully!`
+        : `Test assigned to ${toCount} student(s) successfully!`;
+      
+      showNotificationMessage(message, 'success');
+      setShowReassignModal(false);
+      
+    } catch (error) {
+      console.error('Error reassigning test:', error);
+      handleError(error, 'Reassign test');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [selectedTest.id]: false }));
+    }
+  }, [selectedTest, reassignData, admin, fetchTests, fetchResults]);
+
+  const handleDuplicateTest = useCallback(async (test) => {
+    setActionLoading(prev => ({ ...prev, [test.id]: true }));
+    
+    try {
+      // Fetch real-time test data before duplication
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        FilterExpression: 'id = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      const result = await docClient.send(command);
+      const realTimeTest = result.Items?.[0] || test;
+      
+      const newTest = {
+        ...realTimeTest,
+        id: `test_${Date.now()}`,
+        title: `${realTimeTest.title} (Copy)`,
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      const putCommand = new PutCommand({
+        TableName: AWS_CONFIG.tables.tests,
+        Item: newTest
+      });
+      
+      await docClient.send(putCommand);
+      await fetchTests();
+      showNotificationMessage('Test duplicated successfully!', 'success');
+    } catch (error) {
+      handleError(error, 'Duplicate test');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [test.id]: false }));
+    }
+  }, [fetchTests]);
+
+  const handleBulkAction = useCallback(async (action) => {
+    if (selectedTests.length === 0) {
+      showNotificationMessage('Please select tests first', 'warning');
+      return;
+    }
+    
+    if (action === 'export') {
+      try {
+        const selectedTestData = tests.filter(t => selectedTests.includes(t.id));
+        const exportData = {
+          exportDate: new Date().toISOString(),
+          totalTests: selectedTestData.length,
+          tests: selectedTestData
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bulk_tests_export_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showNotificationMessage(`${selectedTests.length} tests exported successfully!`, 'success');
+      } catch (error) {
+        showNotificationMessage('Failed to export tests', 'error');
+      }
+      return;
+    }
+    
+    setShowBulkModal(true);
+  }, [selectedTests, tests]);
+
+  const toggleTestSelection = useCallback((testId) => {
+    setSelectedTests(prev => 
+      prev.includes(testId) 
+        ? prev.filter(id => id !== testId)
+        : [...prev, testId]
+    );
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedTests([]);
+  }, []);
+
+  // Fetch test assignments
+  const fetchTestAssignments = useCallback(async (testId) => {
+    try {
+      const command = new ScanCommand({
+        TableName: AWS_CONFIG.tables.assignments,
+        FilterExpression: 'testId = :testId',
+        ExpressionAttributeValues: { ':testId': testId }
+      });
+      
+      const result = await docClient.send(command);
+      const assignments = result.Items || [];
+      
+      // Group by college and add status
+      const now = new Date();
+      const collegeAssignments = {};
+      
+      assignments.forEach(assignment => {
+        const college = assignment.college;
+        if (!collegeAssignments[college]) {
+          collegeAssignments[college] = {
+            college,
+            studentCount: 0,
+            completedCount: 0,
+            status: 'active',
+            startDate: assignment.startDate,
+            endDate: assignment.endDate,
+            assignedAt: assignment.assignedAt
+          };
+        }
+        collegeAssignments[college].studentCount++;
+        
+        // Check status
+        if (assignment.endDate && new Date(assignment.endDate) < now) {
+          collegeAssignments[college].status = 'expired';
+        } else if (assignment.startDate && new Date(assignment.startDate) > now) {
+          collegeAssignments[college].status = 'scheduled';
+        }
+      });
+      
+      return Object.values(collegeAssignments);
+    } catch (error) {
+      console.error('Error fetching test assignments:', error);
+      return [];
+    }
+  }, []);
+
+  // Get unique colleges from students
+  const colleges = useMemo(() => {
+    const collegeSet = new Set(students.map(s => s.college).filter(Boolean));
+    return Array.from(collegeSet).sort();
+  }, [students]);
+
+  // Get tests by college
+  const getTestsByCollege = useCallback((college) => {
+    const collegeStudentEmails = students
+      .filter(s => s.college === college)
+      .map(s => s.email);
+    
+    const collegeTestIds = new Set(
+      results
+        .filter(r => collegeStudentEmails.includes(r.studentEmail || r.userEmail))
+        .map(r => r.testId)
+    );
+    
+    return tests.filter(t => collegeTestIds.has(t.id));
+  }, [students, results, tests]);
+
+  // Get test status with real-time assignments and results
+  const getTestStatus = useCallback(async (test) => {
+    const now = new Date();
+    
+    try {
+      // Fetch real-time assignments
+      const assignmentCommand = new ScanCommand({
+        TableName: AWS_CONFIG.tables.assignments,
+        FilterExpression: 'testId = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      let assignments = [];
+      try {
+        const assignmentResult = await docClient.send(assignmentCommand);
+        assignments = assignmentResult.Items || [];
+      } catch (error) {
+        console.log('No assignments found:', error);
+      }
+      
+      // Fetch real-time results
+      const resultCommand = new ScanCommand({
+        TableName: AWS_CONFIG.tables.results,
+        FilterExpression: 'testId = :testId',
+        ExpressionAttributeValues: { ':testId': test.id }
+      });
+      
+      let testResults = [];
+      try {
+        const resultResult = await docClient.send(resultCommand);
+        testResults = resultResult.Items || [];
+      } catch (error) {
+        console.log('No results found:', error);
+      }
+      
+      // Check for schedule info from assignments
+      let hasSchedule = false;
+      let scheduleInfo = null;
+      
+      const scheduledAssignments = assignments.filter(a => a.startDate || a.endDate);
+      if (scheduledAssignments.length > 0) {
+        const firstScheduled = scheduledAssignments[0];
+        hasSchedule = true;
+        scheduleInfo = {
+          startDate: firstScheduled.startDate,
+          endDate: firstScheduled.endDate
+        };
+      }
+      
+      // Count assignments and completions
+      const totalAssigned = assignments.length;
+      const totalCompleted = testResults.filter(r => r.completedAt).length;
+      
+      // Determine status
+      let status = test.status || 'draft';
+      let liveStatus = 'inactive';
+      
+      if (hasSchedule && scheduleInfo) {
+        const startTime = scheduleInfo.startDate ? new Date(scheduleInfo.startDate) : null;
+        const endTime = scheduleInfo.endDate ? new Date(scheduleInfo.endDate) : null;
+        
+        if (startTime && now < startTime) {
+          liveStatus = 'scheduled';
+        } else if (endTime && now > endTime) {
+          liveStatus = 'expired';
+        } else if (startTime && now >= startTime) {
+          liveStatus = 'live';
+        }
+      } else if (status === 'published' && totalAssigned > 0) {
+        liveStatus = 'live';
+      }
+      
+      // Check if all assigned students completed
+      if (totalAssigned > 0 && totalCompleted === totalAssigned) {
+        liveStatus = 'completed';
+      }
+      
+      return {
+        status,
+        liveStatus,
+        totalAssigned,
+        totalCompleted,
+        hasSchedule,
+        scheduleInfo
+      };
+    } catch (error) {
+      console.error('Error fetching real-time test status:', error);
+      // Fallback to cached data
+      const testAssignments = results.filter(r => r.testId === test.id);
+      return {
+        status: test.status || 'draft',
+        liveStatus: 'inactive',
+        totalAssigned: testAssignments.length,
+        totalCompleted: testAssignments.filter(r => r.completedAt).length,
+        hasSchedule: false,
+        scheduleInfo: null
+      };
+    }
+  }, [results]);
+
+  // Filtered and sorted tests
+  const filteredTests = useMemo(() => {
+    let filtered = tests;
+    
+    // Filter by status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(t => t.status === filterStatus);
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(t => 
+        t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'title':
+          return (a.title || '').localeCompare(b.title || '');
+        case 'status':
+          return (a.status || '').localeCompare(b.status || '');
+        case 'createdAt':
+        default:
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+    });
+    
+    return filtered;
+  }, [tests, filterStatus, searchTerm, sortBy]);
+
+  const selectAllTests = useCallback(() => {
+    setSelectedTests(filteredTests.map(t => t.id));
+  }, [filteredTests]);
+
+  // Enhanced stats calculations
+  const stats = useMemo(() => {
+    const totalStudents = students.length;
+    const totalTests = tests.length;
+    const totalResults = results.length;
+    const activeExams = examProgress.length;
+    const publishedTests = tests.filter(t => t.status === 'published').length;
+    const draftTests = tests.filter(t => t.status === 'draft').length;
+    const scheduledTests = tests.filter(t => t.scheduledDate && new Date(t.scheduledDate) > new Date()).length;
+    const avgScore = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + (r.percentage || 0), 0) / results.length) : 0;
+    const passRate = results.length > 0 ? Math.round((results.filter(r => (r.percentage || 0) >= 60).length / results.length) * 100) : 0;
+    
+    return {
+      totalStudents,
+      totalTests,
+      totalResults,
+      activeExams,
+      publishedTests,
+      draftTests,
+      scheduledTests,
+      avgScore,
+      passRate
+    };
+  }, [students, tests, results, examProgress]);
+
+  // Main render
+  return (
+    <div className="admin-dashboard-container">
+      {/* Header */}
+      <header className="admin-header">
+        <div className="header-content">
+          <h1>
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem', verticalAlign: 'middle'}}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Executive Dashboard
+          </h1>
+          <div className="header-actions">
+            <span>Welcome, {admin?.name || 'Executive'}</span>
+            <button onClick={adminLogout} className="logout-btn">Logout</button>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="admin-nav">
+        <div className="nav-tabs">
+          <button 
+            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            Dashboard
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'exams' ? 'active' : ''}`}
+            onClick={() => setActiveTab('exams')}
+          >
+            Manage Tests
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'create-test' ? 'active' : ''}`}
+            onClick={() => setActiveTab('create-test')}
+          >
+            Create Test
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'schedule' ? 'active' : ''}`}
+            onClick={() => setActiveTab('schedule')}
+          >
+            Schedule
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'students' ? 'active' : ''}`}
+            onClick={() => setActiveTab('students')}
+          >
+            Students
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'live-progress' ? 'active' : ''}`}
+            onClick={() => setActiveTab('live-progress')}
+          >
+            Live Progress
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'results' ? 'active' : ''}`}
+            onClick={() => setActiveTab('results')}
+          >
+            Results
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'college-management' ? 'active' : ''}`}
+            onClick={() => setActiveTab('college-management')}
+          >
+            College Management
+          </button>
+        </div>
+      </nav>
+
+      {/* Dashboard Content */}
+      {activeTab === 'dashboard' && (
+        <main className="dashboard-content">
+          {/* Stats Cards */}
+          <section className="stats-section">
+            <div className="stats-grid">
+              <StatCard 
+                stat={stats.totalStudents}
+                className="students"
+                icon={<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
+                label="Total Students"
+                sublabel={`${students.filter(s => new Date(s.createdAt) > new Date(Date.now() - 7*24*60*60*1000)).length} new this week`}
+              />
+              <StatCard 
+                stat={stats.totalTests}
+                className="tests"
+                icon={<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                label="Total Tests"
+                sublabel={`${stats.publishedTests} published`}
+              />
+              <StatCard 
+                stat={stats.activeExams}
+                className="active"
+                icon={<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                label="Live Exams"
+                sublabel="Real-time monitoring"
+              />
+              <StatCard 
+                stat={`${stats.avgScore}%`}
+                className="results"
+                icon={<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+                label="Avg Score"
+                sublabel={`${stats.passRate}% pass rate`}
+              />
+            </div>
+          </section>
+
+          {/* Recent Activity */}
+          <section className="activity-section">
+            <div className="section-header">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem', verticalAlign: 'middle'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Real-time Analytics
+              </h3>
+              <button className="refresh-btn" onClick={() => {
+                fetchStudents();
+                fetchTests();
+                fetchResults();
+                fetchExamProgress();
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            <div className="activity-list">
+              {examProgress.length > 0 ? (
+                examProgress.slice(0, 10).map((progress, index) => (
+                  <ActivityItem 
+                    key={progress.id || index}
+                    progress={progress} 
+                    isActive={true}
+                  />
+                ))
+              ) : (
+                <div className="no-activity">
+                  <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{margin: '0 auto 1rem', color: 'var(--text-muted)'}}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p style={{color: 'var(--text-muted)', textAlign: 'center', margin: 0}}>No active exams at the moment</p>
+                  <p style={{color: 'var(--text-secondary)', fontSize: '0.75rem', textAlign: 'center', margin: '0.5rem 0 0'}}>Live exams will appear here when students are actively taking tests</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </main>
+      )}
+
+      {/* Manage Tests Tab */}
+      {activeTab === 'exams' && (
+        <main className="exams-content">
+          <div className="section-header">
+            <div className="header-left">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem', verticalAlign: 'middle'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Assessment Portfolio
+              </h3>
+              <div className="header-stats">
+                <span className="stat-badge published">{stats.publishedTests} Published</span>
+                <span className="stat-badge draft">{stats.draftTests} Draft</span>
+                <span className="stat-badge scheduled">{stats.scheduledTests} Scheduled</span>
+                <button className="refresh-btn" onClick={() => {
+                  fetchStudents();
+                  fetchTests();
+                  fetchResults();
+                  fetchExamProgress();
+                }}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+            <div className="header-actions">
+              <button className="btn-secondary" onClick={() => setShowAnalyticsModal(true)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Analytics
+              </button>
+              <button className="btn-primary" onClick={() => setActiveTab('create-test')} title="Create a new test by uploading JSON or using the test builder">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add New Test
+              </button>
+            </div>
+          </div>
+          
+          {/* Enhanced Controls */}
+          <div className="controls-section">
+            <div className="search-filter-bar">
+              <div className="search-box">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search tests..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="all">All Status</option>
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="archived">Archived</option>
+              </select>
+              
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="createdAt">Sort by Date</option>
+                <option value="title">Sort by Title</option>
+                <option value="status">Sort by Status</option>
+              </select>
+            </div>
+            
+            {/* Bulk Actions */}
+            <div className="bulk-actions">
+              <div className="selection-info">
+                {selectedTests.length > 0 && (
+                  <span>{selectedTests.length} selected</span>
+                )}
+                <button onClick={selectAllTests} className="link-btn" title="Select all visible tests for bulk operations">Select All ({filteredTests?.length || 0})</button>
+                <button onClick={clearSelection} className="link-btn" title="Clear current selection">Clear</button>
+              </div>
+              
+              {selectedTests.length > 0 && (
+                <div className="bulk-buttons">
+                  <button className="btn-bulk export" onClick={() => handleBulkAction('export')} title="Export selected tests as JSON file">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                    </svg>
+                    Export ({selectedTests.length})
+                  </button>
+                  <button className="btn-bulk" onClick={() => handleBulkAction('publish')} title="Publish all selected tests">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Bulk Publish
+                  </button>
+                  <button className="btn-bulk" onClick={() => handleBulkAction('archive')} title="Archive all selected tests">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8l6 6m0 0l6-6m-6 6V3" />
+                    </svg>
+                    Archive
+                  </button>
+                  <button className="btn-bulk danger" onClick={() => handleBulkAction('delete')} title="Delete all selected tests (cannot be undone)">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner-container">
+                <div className="loading-spinner"></div>
+                <div className="loading-text">
+                  <h4>Loading Assessment Portfolio</h4>
+                  <p>Fetching test data and analytics...</p>
+                </div>
+              </div>
+            </div>
+          ) : tests.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="empty-state-content">
+                <h4>No Assessments Found</h4>
+                <p>Start building your assessment portfolio by creating your first test</p>
+                <div className="empty-state-actions">
+                  <button className="btn-primary" onClick={() => setActiveTab('create-test')}>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create First Test
+                  </button>
+                  <button className="btn-secondary" onClick={() => window.open('/docs/test-creation', '_blank')}>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    View Documentation
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="tests-grid">
+              {filteredTests.map((test, index) => {
+                return <TestCard 
+                  key={test.id}
+                  test={test}
+                  index={index}
+                  selectedTests={selectedTests}
+                  toggleTestSelection={toggleTestSelection}
+                  handlePreviewTest={handlePreviewTest}
+                  handleEditTest={handleEditTest}
+                  handleStatusChange={handleStatusChange}
+                  handleScheduleTest={handleScheduleTest}
+                  handleReassignTest={handleReassignTest}
+                  handleDuplicateTest={handleDuplicateTest}
+                  handleDeleteTest={handleDeleteTest}
+                  actionLoading={actionLoading}
+                  showNotificationMessage={showNotificationMessage}
+                  getTestStatus={getTestStatus}
+                />;
+              })}
+            </div>
+          )}
+        </main>
+      )}
+
+
+          {/* Quick Stats Bar */}
+          <div className="quick-stats">
+            <div className="stat-item">
+              <span className="stat-number">{filteredTests.length}</span>
+              <span className="stat-label">Total Tests</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">{filteredTests.filter(t => t.status === 'published').length}</span>
+              <span className="stat-label">Published</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">{filteredTests.filter(t => t.status === 'draft').length}</span>
+              <span className="stat-label">Draft</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-number">{selectedTests.length}</span>
+              <span className="stat-label">Selected</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Test Tab */}
+      {activeTab === 'create-test' && (
+        <CreateTestTab 
+          fetchTests={fetchTests}
+          showNotificationMessage={showNotificationMessage}
+          handleError={handleError}
+        />
+      )}
+
+      {/* Schedule Tab */}
+      {activeTab === 'schedule' && (
+        <ScheduleTab 
+          tests={tests}
+          students={students}
+          showNotificationMessage={showNotificationMessage}
+          handleError={handleError}
+        />
+      )}
+
+      {/* Students Tab */}
+      {activeTab === 'students' && (
+        <StudentsTab 
+          students={students}
+          showNotificationMessage={showNotificationMessage}
+          handleError={handleError}
+          fetchStudents={fetchStudents}
+        />
+      )}
+
+      {/* Live Progress Tab */}
+      {activeTab === 'live-progress' && (
+        <LiveProgressTab
+          examProgress={examProgress}
+          loading={loading}
+          error={globalError}
+        />
+      )}
+
+      {/* Results Tab */}
+      {activeTab === 'results' && (
+        <ResultsTab 
+          results={results}
+          students={students}
+          tests={tests}
+          showNotificationMessage={showNotificationMessage}
+          onRefresh={() => {
+            fetchStudents();
+            fetchTests();
+            fetchResults();
+          }}
+        />
+      )}
+
+      {/* College Management Tab */}
+      {activeTab === 'college-management' && (
+        <main className="college-management-content">
+          <div className="section-header">
+            <h3>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem'}}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              College Management
+            </h3>
+          </div>
+
+          <div className="college-management-grid">
+            {colleges.map(college => {
+              const collegeStudents = students.filter(s => s.college === college);
+              const collegeTests = getTestsByCollege(college);
+              
+              return (
+                <div key={college} className="college-card">
+                  <div className="college-card-header">
+                    <h4>{college}</h4>
+                    <div className="college-badges">
+                      <span className="badge students">{collegeStudents.length} Students</span>
+                      <span className="badge tests">{collegeTests.length} Tests</span>
+                    </div>
+                  </div>
+                  
+                  <div className="college-actions">
+                    <button 
+                      className="btn-primary"
+                      onClick={() => {
+                        setSelectedTest({ college });
+                        setShowScheduleModal(true);
+                      }}
+                    >
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Schedule Test
+                    </button>
+                    
+                    <button 
+                      className="btn-secondary"
+                      onClick={() => {
+                        setSelectedTest({ college });
+                        setSelectedTestsForAssignment([]);
+                        setShowAssignTestsModal(true);
+                      }}
+                    >
+                      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Assign Tests
+                    </button>
+                  </div>
+                  
+                  <div className="college-test-list">
+                    <h5>Active Tests</h5>
+                    {collegeTests.length === 0 ? (
+                      <p className="no-tests">No tests assigned</p>
+                    ) : (
+                      collegeTests.slice(0, 3).map(test => (
+                        <div key={test.id} className="test-item">
+                          <span className="test-name">{test.title}</span>
+                          <span className={`test-status ${test.status}`}>{test.status}</span>
+                        </div>
+                      ))
+                    )}
+                    {collegeTests.length > 3 && (
+                      <p className="more-tests">+{collegeTests.length - 3} more tests</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </main>
+      )}
+
+      {/* Test Preview Modal */}
+      {showPreview && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowPreview(false)}>
+          <div className="modal-content large" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📋 Test Preview</h3>
+              <button className="close-btn" onClick={() => setShowPreview(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="test-preview">
+                <div className="preview-header">
+                  <h4>{selectedTest.title}</h4>
+                  <div className={`status-badge ${selectedTest.status}`}>
+                    {selectedTest.status}
+                  </div>
+                </div>
+                
+                <div className="preview-details">
+                  <p><strong>Description:</strong> {selectedTest.description || 'No description provided'}</p>
+                  <div className="preview-stats">
+                    <div className="stat-item">
+                      <span className="stat-icon">⏱️</span>
+                      <span className="stat-text">Duration: {selectedTest.timeLimit || 60} minutes</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">❓</span>
+                      <span className="stat-text">Questions: <strong>{selectedTest.realTimeStats?.totalQuestions || selectedTest.questions?.length || 0}</strong></span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">👥</span>
+                      <span className="stat-text">Assigned: <strong>{selectedTest.realTimeStats?.assignmentCount || 0}</strong> students</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">✅</span>
+                      <span className="stat-text">Completed: <strong>{selectedTest.realTimeStats?.completionCount || 0}</strong></span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">📊</span>
+                      <span className="stat-text">Avg Score: <strong>{selectedTest.realTimeStats?.avgScore || 0}%</strong></span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">📅</span>
+                      <span className="stat-text">Created: {selectedTest.createdAt ? new Date(selectedTest.createdAt).toLocaleDateString() : 'Unknown'}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-icon">🔄</span>
+                      <span className="stat-text">Status: <span className={`status-badge ${selectedTest.status}`}>{selectedTest.status}</span></span>
+                    </div>
+                  </div>
+                </div>
+                
+                {(selectedTest.realTimeStats?.totalQuestions > 0 || (selectedTest.questions && selectedTest.questions.length > 0)) && (
+                  <div className="preview-questions">
+                    <h5>📝 Question Breakdown by Module:</h5>
+                    <div className="module-breakdown">
+                      {(() => {
+                        // Use real-time module stats if available, otherwise calculate from questions
+                        const moduleStats = selectedTest.realTimeStats?.moduleQuestions || {};
+                        
+                        if (Object.keys(moduleStats).length === 0 && selectedTest.questions) {
+                          selectedTest.questions.forEach(q => {
+                            const module = q.module || 'General';
+                            moduleStats[module] = (moduleStats[module] || 0) + 1;
+                          });
+                        }
+                        
+                        return Object.entries(moduleStats).map(([module, count]) => {
+                          // Get sample questions for this module
+                          const moduleQuestions = selectedTest.questions?.filter(q => (q.module || 'General') === module) || [];
+                          const sampleQuestions = moduleQuestions.slice(0, 2);
+                          
+                          return (
+                            <div key={module} className="module-section">
+                              <div className="module-header">
+                                <h6>{module}</h6>
+                                <span className="question-count">{count} questions</span>
+                              </div>
+                              <div className="sample-questions">
+                                {sampleQuestions.map((q, index) => (
+                                  <div key={index} className="question-preview">
+                                    <p><strong>Sample {index + 1}:</strong> {q.question || q.text}</p>
+                                    {q.options && (
+                                      <ul className="options-list">
+                                        {q.options.slice(0, 2).map((option, i) => (
+                                          <li key={i}>{option}</li>
+                                        ))}
+                                        {q.options.length > 2 && <li>... and {q.options.length - 2} more options</li>}
+                                      </ul>
+                                    )}
+                                    {q.type && (
+                                      <span className="question-type">{q.type}</span>
+                                    )}
+                                  </div>
+                                ))}
+                                {sampleQuestions.length === 0 && (
+                                  <p className="no-samples">No sample questions available</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()
+                    }
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowPreview(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Close
+              </button>
+              <button className="btn-info" onClick={() => {
+                const testUrl = `${window.location.origin}/exam/${selectedTest.id}`;
+                navigator.clipboard.writeText(testUrl);
+                showNotificationMessage('Test link copied to clipboard!', 'success');
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy Link
+              </button>
+              <button className="btn-primary" onClick={() => {
+                setShowPreview(false);
+                handleEditTest(selectedTest);
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Test
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Edit Modal */}
+      {showEdit && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowEdit(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✏️ Edit Test</h3>
+              <button className="close-btn" onClick={() => setShowEdit(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <form className="edit-form">
+                <div className="form-group">
+                  <label>Test Title *</label>
+                  <input
+                    type="text"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter test title"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter test description"
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Time Limit (minutes)</label>
+                    <input
+                      type="number"
+                      value={editFormData.timeLimit}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, timeLimit: e.target.value }))}
+                      min="1"
+                      max="300"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Total Questions</label>
+                    <input
+                      type="number"
+                      value={editFormData.totalQuestions}
+                      readOnly
+                      className="readonly"
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowEdit(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel
+              </button>
+              <button className="btn-info" onClick={() => {
+                setEditFormData({
+                  title: selectedTest.title || '',
+                  description: selectedTest.description || '',
+                  status: selectedTest.status || 'draft',
+                  timeLimit: selectedTest.timeLimit || 60,
+                  totalQuestions: selectedTest.questions?.length || 0
+                });
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={saveTestEdit}
+                disabled={!editFormData.title || actionLoading[selectedTest.id]}
+              >
+                {actionLoading[selectedTest.id] ? (
+                  <>
+                    <div className="mini-spinner" style={{marginRight: '0.25rem'}}></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Modal */}
+      {showStatusModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
+          <div className="modal-content small" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔄 Change Status</h3>
+              <button className="close-btn" onClick={() => setShowStatusModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to {newStatus} the test <strong>"{selectedTest.title}"</strong>?</p>
+              {newStatus === 'published' && (
+                <div className="warning-message">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  This will make the test available to all students.
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowStatusModal(false)}>Cancel</button>
+              <button 
+                className={`btn-${newStatus === 'published' ? 'success' : 'warning'}`}
+                onClick={confirmStatusChange}
+                disabled={actionLoading[selectedTest.id]}
+              >
+                {actionLoading[selectedTest.id] ? 'Processing...' : `${newStatus === 'published' ? 'Publish' : 'Unpublish'} Test`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Test Modal */}
+      {showScheduleModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowScheduleModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📅 Schedule Test {selectedTest.college ? `for ${selectedTest.college}` : ''}</h3>
+              <button className="close-btn" onClick={() => setShowScheduleModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <form className="schedule-form">
+                {selectedTest.college && (
+                  <div className="form-group">
+                    <label>Select Test</label>
+                    <select value={scheduleData.testId} onChange={(e) => setScheduleData(prev => ({ ...prev, testId: e.target.value }))}>
+                      <option value="">Choose a test...</option>
+                      {tests.filter(t => t.status === 'published').map(test => (
+                        <option key={test.id} value={test.id}>{test.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Start Date & Time</label>
+                    <input type="datetime-local" value={scheduleData.startDate} onChange={(e) => setScheduleData(prev => ({ ...prev, startDate: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>End Date & Time</label>
+                    <input type="datetime-local" value={scheduleData.endDate} onChange={(e) => setScheduleData(prev => ({ ...prev, endDate: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Max Attempts</label>
+                    <select value={scheduleData.maxAttempts} onChange={(e) => setScheduleData(prev => ({ ...prev, maxAttempts: e.target.value }))}>
+                      <option value={1}>1 Attempt</option>
+                      <option value={2}>2 Attempts</option>
+                      <option value={3}>3 Attempts</option>
+                      <option value={-1}>Unlimited</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Auto Grade</label>
+                    <input type="checkbox" checked={scheduleData.autoGrade} onChange={(e) => setScheduleData(prev => ({ ...prev, autoGrade: e.target.checked }))} />
+                  </div>
+                </div>
+                {selectedTest.college && (
+                  <div className="college-info">
+                    <p><strong>Target College:</strong> {selectedTest.college}</p>
+                    <p><strong>Students:</strong> {students.filter(s => s.college === selectedTest.college).length}</p>
+                  </div>
+                )}
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowScheduleModal(false)}>Cancel</button>
+              <button className="btn-primary" onClick={selectedTest.college ? handleCollegeSchedule : undefined}>
+                📅 Schedule Test
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Test Modal */}
+      {showReassignModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowReassignModal(false)}>
+          <div className="modal-content large" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem', verticalAlign: 'middle'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Reassign Test: {selectedTest.title}
+              </h3>
+              <button className="close-btn" onClick={() => setShowReassignModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="reassign-form">
+                <div className="test-info-section">
+                  <div className="test-summary">
+                    <h4>Test Details</h4>
+                    <div className="test-meta">
+                      <span><strong>Title:</strong> {selectedTest.title}</span>
+                      <span><strong>Duration:</strong> {selectedTest.timeLimit || 60} minutes</span>
+                      <span><strong>Questions:</strong> {selectedTest.questions?.length || 0}</span>
+                      <span><strong>Status:</strong> <span className={`status-badge ${selectedTest.status}`}>{selectedTest.status}</span></span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="reassign-section">
+                  <div className="form-row">
+                    <div className="form-group half">
+                      <label>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Remove From Students (Optional)
+                      </label>
+                      <div className="student-selector">
+                        <div className="search-box small">
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <input
+                            type="text"
+                            placeholder="Search students to remove..."
+                            onChange={(e) => {
+                              const searchTerm = e.target.value.toLowerCase();
+                              // Filter logic can be added here
+                            }}
+                          />
+                        </div>
+                        <div className="students-list">
+                          {students.filter(s => {
+                            // Show students who might have this test assigned
+                            return results.some(r => r.testId === selectedTest.id && (r.studentEmail === s.email || r.userEmail === s.email));
+                          }).map(student => (
+                            <label key={student.email} className="student-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={reassignData.fromStudents.includes(student.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setReassignData(prev => ({
+                                      ...prev,
+                                      fromStudents: [...prev.fromStudents, student.email]
+                                    }));
+                                  } else {
+                                    setReassignData(prev => ({
+                                      ...prev,
+                                      fromStudents: prev.fromStudents.filter(email => email !== student.email)
+                                    }));
+                                  }
+                                }}
+                              />
+                              <div className="student-info">
+                                <span className="student-name">{student.name}</span>
+                                <span className="student-email">{student.email}</span>
+                                <span className="student-college">{student.college}</span>
+                              </div>
+                            </label>
+                          ))}
+                          {students.filter(s => results.some(r => r.testId === selectedTest.id && (r.studentEmail === s.email || r.userEmail === s.email))).length === 0 && (
+                            <div className="no-students">
+                              <p>No students currently have this test assigned</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="form-group half">
+                      <label>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Assign To Students *
+                      </label>
+                      <div className="student-selector">
+                        <div className="search-box small">
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <input
+                            type="text"
+                            placeholder="Search students to assign..."
+                            onChange={(e) => {
+                              const searchTerm = e.target.value.toLowerCase();
+                              // Filter logic can be added here
+                            }}
+                          />
+                        </div>
+                        <div className="students-list">
+                          {students.map(student => (
+                            <label key={student.email} className="student-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={reassignData.toStudents.includes(student.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setReassignData(prev => ({
+                                      ...prev,
+                                      toStudents: [...prev.toStudents, student.email]
+                                    }));
+                                  } else {
+                                    setReassignData(prev => ({
+                                      ...prev,
+                                      toStudents: prev.toStudents.filter(email => email !== student.email)
+                                    }));
+                                  }
+                                }}
+                              />
+                              <div className="student-info">
+                                <span className="student-name">{student.name}</span>
+                                <span className="student-email">{student.email}</span>
+                                <span className="student-college">{student.college}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="reassign-options">
+                    <div className="options-row">
+                      <label className="checkbox-option">
+                        <input
+                          type="checkbox"
+                          checked={reassignData.preserveResults}
+                          onChange={(e) => setReassignData(prev => ({ ...prev, preserveResults: e.target.checked }))}
+                        />
+                        <div className="option-content">
+                          <span className="option-title">Preserve Existing Results</span>
+                          <span className="option-description">Keep previous test results when removing students</span>
+                        </div>
+                      </label>
+                      
+                      <label className="checkbox-option">
+                        <input
+                          type="checkbox"
+                          checked={reassignData.notifyStudents}
+                          onChange={(e) => setReassignData(prev => ({ ...prev, notifyStudents: e.target.checked }))}
+                        />
+                        <div className="option-content">
+                          <span className="option-title">Notify Students</span>
+                          <span className="option-description">Send email notifications to newly assigned students</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="reassign-summary">
+                    <div className="summary-section">
+                      <h5>Reassignment Summary</h5>
+                      <div className="summary-stats">
+                        <div className="stat-item">
+                          <span className="stat-number">{reassignData.fromStudents.length}</span>
+                          <span className="stat-label">Students to Remove</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="stat-number">{reassignData.toStudents.length}</span>
+                          <span className="stat-label">Students to Assign</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="stat-number">{reassignData.toStudents.length - reassignData.fromStudents.length}</span>
+                          <span className="stat-label">Net Change</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowReassignModal(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel
+              </button>
+              <button className="btn-info" onClick={() => {
+                setReassignData({
+                  fromStudents: [],
+                  toStudents: [],
+                  preserveResults: true,
+                  notifyStudents: true,
+                  reassignType: 'individual'
+                });
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={confirmReassignTest}
+                disabled={reassignData.toStudents.length === 0 || actionLoading[selectedTest.id]}
+              >
+                {actionLoading[selectedTest.id] ? (
+                  <>
+                    <div className="mini-spinner" style={{marginRight: '0.25rem'}}></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Reassign Test
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {showAnalyticsModal && (
+        <div className="modal-overlay" onClick={() => setShowAnalyticsModal(false)}>
+          <div className="modal-content large" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📊 Test Analytics</h3>
+              <button className="close-btn" onClick={() => setShowAnalyticsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="analytics-dashboard">
+                <div className="analytics-stats">
+                  <div className="stat-card">📈 Completion Rate: 85%</div>
+                  <div className="stat-card">⭐ Average Score: 78%</div>
+                  <div className="stat-card">⏱️ Avg Time: 45 min</div>
+                  <div className="stat-card">👥 Total Attempts: 156</div>
+                </div>
+                <div className="analytics-charts">
+                  <div className="chart-placeholder">📊 Score Distribution Chart</div>
+                  <div className="chart-placeholder">📈 Performance Trends</div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowAnalyticsModal(false)}>Close</button>
+              <button className="btn-primary">📤 Export Report</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Actions Modal */}
+      {showBulkModal && (
+        <div className="modal-overlay" onClick={() => setShowBulkModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔄 Bulk Actions</h3>
+              <button className="close-btn" onClick={() => setShowBulkModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Apply action to {selectedTests.length} selected tests:</p>
+              <div className="bulk-options">
+                <button className="bulk-option">📢 Publish All</button>
+                <button className="bulk-option">📦 Archive All</button>
+                <button className="bulk-option">📅 Schedule All</button>
+                <button className="bulk-option danger">🗑️ Delete All</button>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowBulkModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-content small" onClick={e => e.stopPropagation()}>
+            <div className="modal-header danger">
+              <h3>🗑️ Delete Test</h3>
+              <button className="close-btn" onClick={() => setShowDeleteModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="danger-message">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p>Are you sure you want to permanently delete <strong>"{selectedTest.title}"</strong>?</p>
+                <p className="warning-text">This action cannot be undone. All associated results will also be affected.</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+              <button 
+                className="btn-danger"
+                onClick={confirmDeleteTest}
+                disabled={actionLoading[selectedTest.id]}
+              >
+                {actionLoading[selectedTest.id] ? 'Deleting...' : 'Delete Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Test Modal */}
+      {showPublishModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowPublishModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Publish Test: {selectedTest.title}
+              </h3>
+              <button className="close-btn" onClick={() => setShowPublishModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="publish-form">
+                <div className="form-group">
+                  <label>Select Colleges to Publish</label>
+                  <div className="colleges-selection">
+                    {colleges.map(college => (
+                      <label key={college} className="college-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={publishData.selectedColleges.includes(college)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPublishData(prev => ({
+                                ...prev,
+                                selectedColleges: [...prev.selectedColleges, college]
+                              }));
+                            } else {
+                              setPublishData(prev => ({
+                                ...prev,
+                                selectedColleges: prev.selectedColleges.filter(c => c !== college)
+                              }));
+                            }
+                          }}
+                        />
+                        <span>{college}</span>
+                        <small>({students.filter(s => s.college === college).length} students)</small>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label>Publish Option</label>
+                  <div className="publish-options">
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="publishType"
+                        value="now"
+                        checked={publishData.publishType === 'now'}
+                        onChange={(e) => setPublishData(prev => ({ ...prev, publishType: e.target.value }))}
+                      />
+                      <span>Publish Now</span>
+                    </label>
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="publishType"
+                        value="schedule"
+                        checked={publishData.publishType === 'schedule'}
+                        onChange={(e) => setPublishData(prev => ({ ...prev, publishType: e.target.value }))}
+                      />
+                      <span>Schedule for Later</span>
+                    </label>
+                  </div>
+                </div>
+                
+                {publishData.publishType === 'schedule' && (
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Start Date & Time *</label>
+                      <input
+                        type="datetime-local"
+                        value={publishData.startDate}
+                        onChange={(e) => setPublishData(prev => ({ ...prev, startDate: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Expiry Date & Time (Optional)</label>
+                      <input
+                        type="datetime-local"
+                        value={publishData.endDate}
+                        onChange={(e) => setPublishData(prev => ({ ...prev, endDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {publishData.publishType === 'now' && (
+                  <div className="form-group">
+                    <label>Expiry Date & Time (Optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={publishData.endDate}
+                      onChange={(e) => setPublishData(prev => ({ ...prev, endDate: e.target.value }))}
+                      placeholder="Leave empty for no expiry"
+                    />
+                  </div>
+                )}
+                
+                <div className="form-group">
+                  <label>Max Attempts</label>
+                  <select
+                    value={publishData.maxAttempts}
+                    onChange={(e) => setPublishData(prev => ({ ...prev, maxAttempts: parseInt(e.target.value) }))}
+                  >
+                    <option value={1}>1 Attempt</option>
+                    <option value={2}>2 Attempts</option>
+                    <option value={3}>3 Attempts</option>
+                    <option value={-1}>Unlimited</option>
+                  </select>
+                </div>
+                
+                <div className="publish-summary">
+                  <p><strong>Selected Colleges:</strong> {publishData.selectedColleges.length}</p>
+                  <p><strong>Total Students:</strong> {publishData.selectedColleges.reduce((sum, college) => sum + students.filter(s => s.college === college).length, 0)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowPublishModal(false)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={publishData.selectedColleges.length === 0 || (publishData.publishType === 'schedule' && !publishData.startDate)}
+                onClick={async () => {
+                  try {
+                    // Update test status
+                    await docClient.send(new UpdateCommand({
+                      TableName: AWS_CONFIG.tables.tests,
+                      Key: { id: selectedTest.id },
+                      UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
+                      ExpressionAttributeNames: { '#status': 'status' },
+                      ExpressionAttributeValues: {
+                        ':status': 'published',
+                        ':updatedAt': new Date().toISOString()
+                      }
+                    }));
+                    
+                    // Create assignments for selected colleges
+                    const assignmentPromises = [];
+                    publishData.selectedColleges.forEach(college => {
+                      const collegeStudents = students.filter(s => s.college === college);
+                      collegeStudents.forEach(student => {
+                        const assignmentId = `assignment_${selectedTest.id}_${student.email}_${Date.now()}`;
+                        assignmentPromises.push(
+                          docClient.send(new PutCommand({
+                            TableName: AWS_CONFIG.tables.assignments,
+                            Item: {
+                              id: assignmentId,
+                              testId: selectedTest.id,
+                              studentEmail: student.email,
+                              college: college,
+                              startDate: publishData.startDate || null,
+                              endDate: publishData.endDate || null,
+                              maxAttempts: publishData.maxAttempts,
+                              assignedAt: new Date().toISOString(),
+                              assignedBy: admin?.email,
+                              status: publishData.publishType === 'schedule' ? 'scheduled' : 'assigned'
+                            }
+                          }))
+                        );
+                      });
+                    });
+                    
+                    await Promise.all(assignmentPromises);
+                    await fetchTests();
+                    
+                    const totalStudents = publishData.selectedColleges.reduce((sum, college) => sum + students.filter(s => s.college === college).length, 0);
+                    showNotificationMessage(`Test published to ${publishData.selectedColleges.length} colleges (${totalStudents} students)!`, 'success');
+                    setShowPublishModal(false);
+                  } catch (error) {
+                    console.error('Error publishing test:', error);
+                    showNotificationMessage('Failed to publish test', 'error');
+                  }
+                }}
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {publishData.publishType === 'now' ? 'Publish Now' : 'Schedule'} to {publishData.selectedColleges.length} Colleges
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Tests Modal */}
+      {showAssignTestsModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowAssignTestsModal(false)}>
+          <div className="modal-content large" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Assign Tests to {selectedTest.college}
+              </h3>
+              <button className="close-btn" onClick={() => setShowAssignTestsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="assign-tests-content">
+                <div className="college-info-section">
+                  <p><strong>Target College:</strong> {selectedTest.college}</p>
+                  <p><strong>Students:</strong> {students.filter(s => s.college === selectedTest.college).length}</p>
+                </div>
+                
+                <div className="tests-selection">
+                  <h4>Select Tests to Assign</h4>
+                  <div className="tests-grid-modal">
+                    {tests.map(test => (
+                      <div key={test.id} className={`test-card-small ${selectedTestsForAssignment.includes(test.id) ? 'selected' : ''}`}>
+                        <label className="test-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedTestsForAssignment.includes(test.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTestsForAssignment(prev => [...prev, test.id]);
+                              } else {
+                                setSelectedTestsForAssignment(prev => prev.filter(id => id !== test.id));
+                              }
+                            }}
+                          />
+                          <div className="test-info-small">
+                            <h5>{test.title}</h5>
+                            <div className="test-meta-small">
+                              <span className={`status-badge ${test.status}`}>{test.status}</span>
+                              <span>{test.timeLimit || 60} min</span>
+                              <span>{test.questions?.length || 0} questions</span>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="assignment-summary">
+                  <p><strong>Selected Tests:</strong> {selectedTestsForAssignment.length}</p>
+                  <p><strong>Total Assignments:</strong> {selectedTestsForAssignment.length * students.filter(s => s.college === selectedTest.college).length}</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowAssignTestsModal(false)}>Cancel</button>
+              <button 
+                className="btn-primary"
+                disabled={selectedTestsForAssignment.length === 0}
+                onClick={async () => {
+                  try {
+                    const collegeStudents = students.filter(s => s.college === selectedTest.college);
+                    const assignmentPromises = [];
+                    
+                    selectedTestsForAssignment.forEach(testId => {
+                      collegeStudents.forEach(student => {
+                        const assignmentId = `assignment_${testId}_${student.email}_${Date.now()}`;
+                        assignmentPromises.push(
+                          docClient.send(new PutCommand({
+                            TableName: AWS_CONFIG.tables.assignments,
+                            Item: {
+                              id: assignmentId,
+                              testId: testId,
+                              studentEmail: student.email,
+                              college: selectedTest.college,
+                              assignedAt: new Date().toISOString(),
+                              assignedBy: admin?.email,
+                              status: 'assigned'
+                            }
+                          }))
+                        );
+                      });
+                    });
+                    
+                    await Promise.all(assignmentPromises);
+                    showNotificationMessage(`${selectedTestsForAssignment.length} tests assigned to ${selectedTest.college}!`, 'success');
+                    setShowAssignTestsModal(false);
+                  } catch (error) {
+                    console.error('Error assigning tests:', error);
+                    showNotificationMessage('Failed to assign tests', 'error');
+                  }
+                }}
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Assign {selectedTestsForAssignment.length} Tests
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Assignments Modal */}
+      {showAssignmentsModal && selectedTest && (
+        <div className="modal-overlay" onClick={() => setShowAssignmentsModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.5rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Test Assignments: {selectedTest.title}
+              </h3>
+              <button className="close-btn" onClick={() => setShowAssignmentsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="assignments-overview">
+                <div className="overview-stats">
+                  <div className="stat-item">
+                    <span className="stat-number">{testAssignments.length}</span>
+                    <span className="stat-label">Colleges</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-number">{testAssignments.reduce((sum, a) => sum + a.studentCount, 0)}</span>
+                    <span className="stat-label">Students</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-number">{testAssignments.filter(a => a.status === 'active').length}</span>
+                    <span className="stat-label">Active</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-number">{testAssignments.filter(a => a.status === 'expired').length}</span>
+                    <span className="stat-label">Expired</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="assignments-list">
+                {testAssignments.length === 0 ? (
+                  <div className="empty-assignments">
+                    <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{margin: '0 auto 1rem', color: 'var(--text-muted)'}}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <p>No colleges have been assigned this test yet.</p>
+                    <button className="btn-primary" onClick={() => {
+                      setShowAssignmentsModal(false);
+                      handleStatusChange(selectedTest, 'published');
+                    }}>
+                      Assign to Colleges
+                    </button>
+                  </div>
+                ) : (
+                  testAssignments.map(assignment => (
+                    <div key={assignment.college} className="assignment-card">
+                      <div className="assignment-header">
+                        <div className="college-info">
+                          <h4>{assignment.college}</h4>
+                          <div className="assignment-meta">
+                            <span className="student-count">👥 {assignment.studentCount} students</span>
+                            <span className="assigned-date">📅 {new Date(assignment.assignedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className={`assignment-status-badge ${assignment.status}`}>
+                          {assignment.status === 'active' && (
+                            <>
+                              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                                <circle cx="12" cy="12" r="10" fill="#10b981"/>
+                              </svg>
+                              ACTIVE
+                            </>
+                          )}
+                          {assignment.status === 'expired' && (
+                            <>
+                              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                                <circle cx="12" cy="12" r="10" fill="#ef4444"/>
+                              </svg>
+                              EXPIRED
+                            </>
+                          )}
+                          {assignment.status === 'scheduled' && (
+                            <>
+                              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                                <circle cx="12" cy="12" r="10" fill="#f59e0b"/>
+                              </svg>
+                              SCHEDULED
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="assignment-timeline">
+                        {assignment.startDate && (
+                          <div className="timeline-item">
+                            <span className="timeline-icon">🚀</span>
+                            <span className="timeline-text">Starts: {new Date(assignment.startDate).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {assignment.endDate && (
+                          <div className="timeline-item">
+                            <span className="timeline-icon">⏰</span>
+                            <span className="timeline-text">Expires: {new Date(assignment.endDate).toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="timeline-item">
+                          <span className="timeline-icon">✅</span>
+                          <span className="timeline-text">{assignment.completedCount} completed</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowAssignmentsModal(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Close
+              </button>
+              <button className="btn-primary" onClick={() => {
+                setShowAssignmentsModal(false);
+                handleStatusChange(selectedTest, 'published');
+              }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{marginRight: '0.25rem'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Modify Assignments
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications */}
+      {showNotification && (
+        <div className={`notification ${notificationType}`}>
+          <span>{notificationMessage}</span>
+          <button onClick={() => setShowNotification(false)}>×</button>
+        </div>
+      )}
+
+      <PerformanceMonitor enabled={import.meta.env.DEV} />
+    </div>
+  );
+};
+
+export default AdminDashboard;

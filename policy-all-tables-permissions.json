@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:ListTables",
+        "dynamodb:CreateTable",
+        "dynamodb:DescribeTable",
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Scan",
+        "dynamodb:Query"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/*/index/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-schedules",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-schedules/index/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-reassignments",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-reassignments/index/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-assignments",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-assignments/index/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-exams",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-exams/index/*",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-results",
+        "arn:aws:dynamodb:ap-southeast-1:292085144687:table/codenvia-exam-platform-results/index/*"
+      ]
+    }
+  ]
+}

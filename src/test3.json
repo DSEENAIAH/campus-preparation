@@ -1,0 +1,131 @@
+{
+  "title": "Comprehensive Skills Assessment",
+  "description": "Complete evaluation of all skill areas",
+  "duration": 90,
+  "totalMarks": 15,
+  "totalQuestions": 15,
+  "moduleOrder": ["aptitude", "grammarMCQ", "readingSpeaking", "listeningRepetition", "storytelling", "listeningComprehension", "errorCorrection"],
+  "modules": {
+    "aptitude": {
+      "enabled": true,
+      "title": "Aptitude Test",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "apt1",
+          "question": "What comes next: 1, 4, 9, 16, ?",
+          "options": ["20", "25", "30", "36"],
+          "correctAnswer": 1
+        },
+        {
+          "id": "apt2",
+          "question": "If BOOK is coded as 2551411, then LOOK is coded as?",
+          "options": ["12151411", "12151511", "11151411", "12141411"],
+          "correctAnswer": 0
+        }
+      ]
+    },
+    "grammarMCQ": {
+      "enabled": true,
+      "title": "Grammar",
+      "type": "mcq",
+      "questions": [
+        {
+          "id": "gram1",
+          "question": "Choose the passive voice: 'They built the house.'",
+          "options": ["The house was built by them", "The house is built by them", "The house built by them", "They were built the house"],
+          "correctAnswer": 0
+        },
+        {
+          "id": "gram2",
+          "question": "Fill in the blank: 'If I _____ you, I would study harder.'",
+          "options": ["am", "was", "were", "will be"],
+          "correctAnswer": 2
+        }
+      ]
+    },
+    "readingSpeaking": {
+      "enabled": true,
+      "title": "Reading & Speaking",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "rs1",
+          "question": "Read this passage: 'Technology has revolutionized the way we communicate and work.'"
+        },
+        {
+          "id": "rs2",
+          "question": "Read this passage: 'Sustainable development is crucial for our planet's future.'"
+        }
+      ]
+    },
+    "listeningRepetition": {
+      "enabled": true,
+      "title": "Listen & Repeat",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lr1",
+          "question": "Repeat: 'Artificial intelligence is transforming industries worldwide.'"
+        },
+        {
+          "id": "lr2",
+          "question": "Repeat: 'Effective communication requires active listening skills.'"
+        }
+      ]
+    },
+    "storytelling": {
+      "enabled": true,
+      "title": "Storytelling",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "st1",
+          "question": "Tell a story about innovation in your field of study"
+        },
+        {
+          "id": "st2",
+          "question": "Describe a time when teamwork led to success"
+        }
+      ]
+    },
+    "listeningComprehension": {
+      "enabled": true,
+      "title": "Listening",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "lc1",
+          "story": "Global warming is causing significant changes to our climate. Rising temperatures are melting ice caps and affecting weather patterns worldwide.",
+          "mcqs": [
+            {
+              "question": "What is causing changes to our climate?",
+              "correctAnswer": "Global warming"
+            },
+            {
+              "question": "What effect does rising temperature have on ice caps?",
+              "correctAnswer": "It melts them"
+            }
+          ]
+        }
+      ]
+    },
+    "errorCorrection": {
+      "enabled": true,
+      "title": "Error Correction",
+      "type": "voice",
+      "questions": [
+        {
+          "id": "ec1",
+          "question": "Correct: 'Neither of the students have completed their assignment.'",
+          "correctAnswer": "Neither of the students has completed their assignment."
+        },
+        {
+          "id": "ec2",
+          "question": "Correct: 'The data shows that sales is increasing.'",
+          "correctAnswer": "The data shows that sales are increasing."
+        }
+      ]
+    }
+  }
+}
